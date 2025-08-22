@@ -1,0 +1,30 @@
+﻿using Microsoft.AspNetCore.Identity;
+using System;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace Domain.Entities
+{
+    public class AliciProfili: IdentityUser
+    {
+        [Key]
+        [Required]
+        public string? KullaniciId { get; set; }
+
+        [StringLength(200)]
+        public string? Adres { get; set; }
+
+        [StringLength(100)]
+        public string? FavoriKategori { get; set; }
+
+    
+
+        public DateTime KayitTarihi { get; set; } = DateTime.UtcNow;
+
+        public bool AktifMi { get; set; } = true;
+
+
+        [ForeignKey("KullaniciId")]
+        public virtual ApplicationUser? Kullanici { get; set; }
+    }
+}
