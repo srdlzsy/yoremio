@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'API'">
+    <!-- API çıktısını ayrı klasöre alarak çalışan süreçlerin kilitlediği varsayılan bin/obj çatışmasını önlüyoruz. -->
+    <BaseOutputPath>$(MSBuildThisFileDirectory)artifacts\api-build\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts\api-build\obj\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>
