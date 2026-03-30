@@ -2,6 +2,25 @@
 
 Yoremio, organik urun saticilari ile alicilari dogrudan bulusturan bir pazar yeri platformudur.
 
+## GitHub
+
+GitHub repo linkinizi bu alana ekleyin:
+
+- `https://github.com/<kullanici-adi>/<repo-adi>`
+
+README'nin GitHub'da dogru gorunmesi icin dosya adinin `README.md` oldugundan ve depo kok dizininde bulundugundan emin olun.
+
+Projeyi GitHub'a gondermek icin ornek komutlar:
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/<kullanici-adi>/<repo-adi>.git
+git push -u origin main
+```
+
 Platform rolleri:
 
 - `SATICI`: urun ve profil yonetimi yapar, taleplere teklif verir.
