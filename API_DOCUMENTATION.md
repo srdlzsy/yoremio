@@ -104,7 +104,10 @@ UI:
 
 ### 3.4 Media URL Kullanımı
 
-Ürün medya alanları relative URL döner:
+Ürün medya alanları iki formatta dönebilir:
+
+- Local/demo/static storage: relative URL, örnek `/demo-media/yayla-bali/resimler/1.jpg`
+- Cloudinary storage: absolute URL, örnek `https://res.cloudinary.com/.../image/upload/...jpg`
 
 ```json
 {
@@ -112,13 +115,20 @@ UI:
 }
 ```
 
-UI mutlak URL üretmeli:
+UI tek helper ile mutlak URL üretmeli:
 
 ```ts
-const mediaUrl = `${API_BASE_URL}${item.url}`;
+function resolveMediaUrl(url?: string | null) {
+  if (!url) return "/placeholder-product.jpg";
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+}
 ```
 
-Upload edilen ürün medya dosyaları da aynı şekilde API static file üzerinden servis edilir.
+Production önerisi:
+
+- Render gibi ephemeral filesystem kullanan ortamlarda upload dosyaları container içinde kalıcı değildir.
+- `Cloudinary:Enabled=true` olduğunda yeni upload edilen ürün resimleri/videoları Cloudinary'ye yüklenir ve DB'ye Cloudinary CDN URL'i yazılır.
+- Eski relative demo medya URL'leri çalışmaya devam eder; frontend bu yüzden iki URL formatını da desteklemelidir.
 
 ### 3.5 Standart Response Envelope
 
@@ -1724,7 +1734,7 @@ Frontend tarafında özellikle unutulmaması gerekenler:
 - Tüm response'larda `success/message/data/errors/traceId` envelope bekleyin.
 - Upload endpointlerinde JSON değil `multipart/form-data` kullanın.
 - Upload alan adlarını backend DTO adlarıyla gönderin: `Adi`, `Fiyat`, `Resimler`, `Videolar`.
-- Media URL'leri relative gelir; API base URL ile birleştirin.
+- Media URL'leri local/demo için relative, Cloudinary için absolute gelebilir; `http` ile başlıyorsa direkt kullanın, değilse API base URL ile birleştirin.
 - Satıcı login için email + telefon doğrulama gereksinimini UI metninde açıklayın.
 - Chat'te REST geçmiş + SignalR canlı eventleri birlikte kullanılmalıdır.
 - Puan sonrası gerçek ortalama için ürün detayını veya ortalama endpointini refresh edin.

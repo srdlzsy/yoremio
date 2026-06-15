@@ -33,5 +33,19 @@ services:
         value: "true"
       - key: Sms__Twilio__UseMockSender
         value: "true"
+      - key: Cloudinary__Enabled
+        sync: false
+      - key: Cloudinary__CloudName
+        sync: false
+      - key: Cloudinary__ApiKey
+        sync: false
+      - key: Cloudinary__ApiSecret
+        sync: false
+      - key: Cloudinary__UploadFolder
+        value: "yoremio"
       - key: Cors__AllowedOrigins__0
         sync: false
+      - key: Cors__AllowedOrigins__1
+        value: "http://localhost:3000"
+      - key: Cors__AllowedOrigins__2
+        value: "https://localhost:3000"

@@ -196,11 +196,13 @@ Profil:
 - `Verification:PublicBaseUrl`, `Email:Smtp` ve `Sms:Twilio` ayarlari satici dogrulama akisinda kullanilir.
 - `Startup:ApplyMigrations` ve `Startup:SeedSampleData` bos/null birakilirsa sadece Development ortaminda otomatik calisir.
 - `RateLimiting:PermitLimit` ve `RateLimiting:WindowSeconds` global API rate limit davranisini belirler.
+- `Cloudinary:Enabled=true` verilirse yeni urun medya uploadlari Cloudinary CDN'e yuklenir. Gerekli ayarlar: `Cloudinary:CloudName`, `Cloudinary:ApiKey`, `Cloudinary:ApiSecret`, `Cloudinary:UploadFolder`.
 
 ## Production Notlari
 
 - JWT key, SMTP/Twilio bilgileri ve veritabani connection string production ortaminda environment variable, user secret veya secret manager ile verilmelidir.
 - Production ortaminda varsayilan `Jwt:Key` kullanilirsa uygulama acilista hata verir.
+- Render gibi kalici disk vermeyen ortamlarda local `wwwroot` uploadlari production icin uygun degildir; Cloudinary veya benzeri kalici obje/CDN servisi kullanilmalidir.
 - Migration uygulamasi production deployment pipeline'inda kontrollu calistirilmelidir; uygulama icinde acmak icin `Startup:ApplyMigrations=true` verilebilir.
 - Seed verisi production'da kapali tutulmalidir; `Startup:SeedSampleData=true` sadece test/demo ortamlarinda kullanilmalidir.
 - Satici girisi varsayilan olarak email ve telefon dogrulamasi ister. Bu davranis `Verification:RequireConfirmedPhoneForSellerLogin` ile yonetilir.

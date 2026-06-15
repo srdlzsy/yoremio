@@ -6,11 +6,14 @@ using Infrastructure.Options;
 using Infrastructure.Persistence;
 using Infrastructure.Repositories;
 using Infrastructure.Services;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Infrastructure
 {
@@ -53,6 +56,7 @@ namespace Infrastructure
             services.Configure<SmtpEmailOptions>(configuration.GetSection("Email:Smtp"));
             services.Configure<TwilioSmsOptions>(configuration.GetSection("Sms:Twilio"));
             services.Configure<VerificationOptions>(configuration.GetSection("Verification"));
+            services.Configure<CloudinaryOptions>(configuration.GetSection("Cloudinary"));
             // Generic Repository & Service (her Entity için)
             services.AddScoped(typeof(IBaseRepository<>), typeof(BaseRepository<>));
             services.AddScoped(typeof(IBaseService<>), typeof(BaseService<>));
@@ -78,7 +82,18 @@ namespace Infrastructure
             services.AddHttpClient<ISmsSender, SmsSender>();
             services.AddScoped<IUrunService, UrunService>();
             services.AddScoped<ITalepService, TalepService>();
-            services.AddScoped<IDosyaKaydetService, DosyaKaydetService>();
+            services.AddScoped<IDosyaKaydetService>(provider =>
+            {
+                var cloudinaryOptions = provider.GetRequiredService<IOptions<CloudinaryOptions>>().Value;
+                if (cloudinaryOptions.Enabled)
+                {
+                    return new CloudinaryDosyaKaydetService(
+                        provider.GetRequiredService<IOptions<CloudinaryOptions>>(),
+                        provider.GetRequiredService<ILogger<CloudinaryDosyaKaydetService>>());
+                }
+
+                return new DosyaKaydetService(provider.GetRequiredService<IWebHostEnvironment>());
+            });
             services.AddScoped<IYorumServices, YorumServices>();
             services.AddScoped<IPuanService, PuanService>();
             services.AddScoped<IChatService, ChatService>();

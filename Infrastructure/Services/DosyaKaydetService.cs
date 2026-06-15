@@ -60,6 +60,35 @@ namespace Infrastructure.Services
             return "/" + string.Join("/", safeSegments.Append(dosyaAdi));
         }
 
+        public Task SilDosyaAsync(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url) || Uri.TryCreate(url, UriKind.Absolute, out _))
+            {
+                return Task.CompletedTask;
+            }
+
+            var webRootPath = _environment.WebRootPath;
+            if (string.IsNullOrWhiteSpace(webRootPath))
+            {
+                webRootPath = Path.Combine(_environment.ContentRootPath, "wwwroot");
+            }
+
+            var webRootFullPath = Path.GetFullPath(webRootPath);
+            var relativePath = url.TrimStart('/', '\\')
+                .Replace('/', Path.DirectorySeparatorChar)
+                .Replace('\\', Path.DirectorySeparatorChar);
+            var targetPath = Path.GetFullPath(Path.Combine(webRootFullPath, relativePath));
+
+            EnsurePathInsideRoot(webRootFullPath, targetPath);
+
+            if (File.Exists(targetPath))
+            {
+                File.Delete(targetPath);
+            }
+
+            return Task.CompletedTask;
+        }
+
         private static string SanitizePathSegment(string segment)
         {
             var invalidChars = Path.GetInvalidFileNameChars();

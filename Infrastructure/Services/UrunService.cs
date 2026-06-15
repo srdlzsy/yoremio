@@ -169,6 +169,7 @@ namespace Infrastructure.Services
             if (!string.Equals(urun.SaticiId, saticiId, StringComparison.Ordinal))
                 throw new UnauthorizedAccessException("Bu ürün üzerinde işlem yetkiniz yok.");
 
+            await MedyalariSilAsync(urun);
             _urunRepository.Remove(urun);
             return await _urunRepository.SaveChangesAsync();
         }
@@ -186,6 +187,7 @@ namespace Infrastructure.Services
             if (resim == null)
                 throw new Exception("Resim bulunamadı.");
 
+            await _dosyaKaydetService.SilDosyaAsync(resim.Url);
             urun.Resimler.Remove(resim);
             return await _urunRepository.SaveChangesAsync();
         }
@@ -203,6 +205,7 @@ namespace Infrastructure.Services
             if (video == null)
                 throw new Exception("Video bulunamadı.");
 
+            await _dosyaKaydetService.SilDosyaAsync(video.Url);
             urun.Videolar.Remove(video);
             return await _urunRepository.SaveChangesAsync();
         }
@@ -309,6 +312,19 @@ namespace Infrastructure.Services
             }
 
             return urlListesi;
+        }
+
+        private async Task MedyalariSilAsync(Urun urun)
+        {
+            foreach (var resim in urun.Resimler.ToList())
+            {
+                await _dosyaKaydetService.SilDosyaAsync(resim.Url);
+            }
+
+            foreach (var video in urun.Videolar.ToList())
+            {
+                await _dosyaKaydetService.SilDosyaAsync(video.Url);
+            }
         }
 
         private static string Slugify(string text)

@@ -10,5 +10,6 @@ namespace Application.Interfaces
     public interface IDosyaKaydetService
     {
         Task<string> KaydetDosyaAsync(IFormFile dosya, string klasor);
+        Task SilDosyaAsync(string url);
     }
 }
