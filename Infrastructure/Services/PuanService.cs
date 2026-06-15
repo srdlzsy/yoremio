@@ -7,16 +7,24 @@ namespace Infrastructure.Services
     public class PuanService : IPuanService
     {
         private readonly IPuanRepository _puanRepository;
-        public PuanService(IPuanRepository puanRepository)
+        private readonly IUrunRepository _urunRepository;
+
+        public PuanService(IPuanRepository puanRepository, IUrunRepository urunRepository)
         {
             _puanRepository = puanRepository;
-
+            _urunRepository = urunRepository;
         }
 
 
-        public Task<int> GetOrCreatePuanAsync(int urunId, string kullaniciId, int puanDegeri)
+        public async Task<int> GetOrCreatePuanAsync(int urunId, string kullaniciId, int puanDegeri)
         {
-            return _puanRepository.GetOrCreatePuanAsync(urunId, kullaniciId, puanDegeri);
+            var urun = await _urunRepository.GetByIdAsync(urunId);
+            if (urun == null || !urun.AktifMi)
+            {
+                throw new KeyNotFoundException("Ürün bulunamadı.");
+            }
+
+            return await _puanRepository.GetOrCreatePuanAsync(urunId, kullaniciId, puanDegeri);
         }
 
         public Task<double> GetOrtalamaPuanByUrunIdAsync(int urunId)

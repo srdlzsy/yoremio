@@ -11,17 +11,32 @@ namespace Infrastructure.Persistence
     {
         public const string SeedPassword = "Test123!";
 
-        public static async Task InitializeAsync(IServiceProvider serviceProvider, ILogger logger, bool seedSampleData, CancellationToken cancellationToken = default)
+        public static async Task InitializeAsync(
+            IServiceProvider serviceProvider,
+            ILogger logger,
+            bool applyMigrations,
+            bool seedSampleData,
+            CancellationToken cancellationToken = default)
         {
             var context = serviceProvider.GetRequiredService<YoremioContext>();
             var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-            await context.Database.MigrateAsync(cancellationToken);
+            if (applyMigrations)
+            {
+                await context.Database.MigrateAsync(cancellationToken);
+                logger.LogInformation("Veritabani migrationlari uygulandi.");
+            }
+            else
+            {
+                logger.LogInformation("Veritabani migration uygulamasi atlandi.");
+            }
+
             await EnsureRolesAsync(roleManager, logger);
 
             if (!seedSampleData)
             {
+                logger.LogInformation("Ornek veri seed islemi atlandi.");
                 return;
             }
 

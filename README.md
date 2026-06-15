@@ -38,7 +38,7 @@ Not: Platform odeme ve kargo sureci yonetmez; iletisim ve anlasma kaydi tutar.
 - Satici guven skoru ve dogrulanmis satici rozeti
 - Sehir/ilce bazli filtreleme
 - Talep/teklif akisi
-- SignalR tabanli mesajlasma (`/chathub`)
+- Kalici mesaj gecmisi ve okundu bilgisi olan SignalR tabanli canli mesajlasma (`/chathub`)
 
 ## Teknoloji Yigini
 
@@ -175,6 +175,14 @@ Talep:
 - `POST /api/Talep/{talepId}/teklif`
 - `POST /api/Talep/teklif/{teklifId}/kabul`
 
+Chat:
+
+- `GET /api/Chat/conversations`
+- `GET /api/Chat/messages/{otherUserId}`
+- `POST /api/Chat/messages/{receiverId}`
+- `POST /api/Chat/messages/{otherUserId}/read`
+- SignalR: `/chathub`
+
 Profil:
 
 - `GET /api/Profil/satici`
@@ -186,6 +194,16 @@ Profil:
 - JWT ayarlari `API/appsettings.json` icindeki `Jwt` bolumunden gelir.
 - CORS allowlist `Cors:AllowedOrigins` uzerinden yonetilir.
 - `Verification:PublicBaseUrl`, `Email:Smtp` ve `Sms:Twilio` ayarlari satici dogrulama akisinda kullanilir.
+- `Startup:ApplyMigrations` ve `Startup:SeedSampleData` bos/null birakilirsa sadece Development ortaminda otomatik calisir.
+- `RateLimiting:PermitLimit` ve `RateLimiting:WindowSeconds` global API rate limit davranisini belirler.
+
+## Production Notlari
+
+- JWT key, SMTP/Twilio bilgileri ve veritabani connection string production ortaminda environment variable, user secret veya secret manager ile verilmelidir.
+- Production ortaminda varsayilan `Jwt:Key` kullanilirsa uygulama acilista hata verir.
+- Migration uygulamasi production deployment pipeline'inda kontrollu calistirilmelidir; uygulama icinde acmak icin `Startup:ApplyMigrations=true` verilebilir.
+- Seed verisi production'da kapali tutulmalidir; `Startup:SeedSampleData=true` sadece test/demo ortamlarinda kullanilmalidir.
+- Satici girisi varsayilan olarak email ve telefon dogrulamasi ister. Bu davranis `Verification:RequireConfirmedPhoneForSellerLogin` ile yonetilir.
 
 ## Dokumantasyon
 

@@ -128,12 +128,7 @@ namespace API.Controllers
                 return BadRequest(ApiResponse<object>.Fail("Email doğrulama başarısız.", traceId: HttpContext.TraceIdentifier));
             }
 
-            var satici = await _saticiProfiliService.GetSaticiWithUserByIdAsync(userId);
-            if (satici != null)
-            {
-                satici.AktifMi = true;
-                await _saticiProfiliService.UpdateAsync(satici);
-            }
+            await TryActivateVerifiedSellerAsync(userId);
 
             _logger.LogInformation("Email başarıyla doğrulandı. UserId: {UserId}", userId);
             return Ok(ApiResponse<object>.Ok(null, "Email başarıyla doğrulandı.", HttpContext.TraceIdentifier));
@@ -156,8 +151,27 @@ namespace API.Controllers
                 return BadRequest(ApiResponse<object>.Fail("Telefon doğrulama başarısız.", traceId: HttpContext.TraceIdentifier));
             }
 
+            await TryActivateVerifiedSellerAsync(userId);
+
             _logger.LogInformation("Telefon başarıyla doğrulandı. UserId: {UserId}", userId);
             return Ok(ApiResponse<object>.Ok(null, "Telefon başarıyla doğrulandı.", HttpContext.TraceIdentifier));
+        }
+
+        private async Task TryActivateVerifiedSellerAsync(string userId)
+        {
+            var satici = await _saticiProfiliService.GetSaticiWithUserByIdAsync(userId);
+            if (satici?.Kullanici is null || satici.AktifMi)
+            {
+                return;
+            }
+
+            if (!satici.Kullanici.EmailConfirmed || !satici.Kullanici.PhoneNumberConfirmed)
+            {
+                return;
+            }
+
+            satici.AktifMi = true;
+            await _saticiProfiliService.UpdateAsync(satici);
         }
 
         public class LoginResponseDto

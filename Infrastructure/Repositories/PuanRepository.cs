@@ -40,6 +40,7 @@ namespace Infrastructure.Repositories
             {
                 // Puan varsa güncelle
                 mevcutPuan.PuanDegeri = puanDegeri;
+                mevcutPuan.PuanTarihi = DateTime.UtcNow;
                 _yoremiocontext.Puanlar.Update(mevcutPuan);
             }
             else
@@ -117,15 +118,17 @@ namespace Infrastructure.Repositories
         /// <returns>Ortalama puan (1-5 arası), puan yoksa 0</returns>
         public async Task<double> GetOrtalamaPuanByUrunIdAsync(int urunId)
         {
-            var puanlar = await _yoremiocontext.Puanlar
-                .Where(p => p.UrunId == urunId)
-                .ToListAsync();
+            var query = _yoremiocontext.Puanlar
+                .Where(p => p.UrunId == urunId);
 
-            if (puanlar.Count == 0)
+            if (!await query.AnyAsync())
+            {
                 return 0;
+            }
 
             // Ortalama değeri 1 ondalık basamağa yuvarla
-            return Math.Round(puanlar.Average(p => p.PuanDegeri), 1);
+            var ortalama = await query.AverageAsync(p => p.PuanDegeri);
+            return Math.Round(ortalama, 1);
         }
 
         // Buraya istersen ekstra metodlar ekleyebilirsin.

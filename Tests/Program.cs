@@ -4,6 +4,7 @@ using Domain.Constants;
 using Infrastructure.Hubs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Text;
@@ -27,7 +28,9 @@ var tests = new (string Name, Action Test)[]
     ("Yorum yazma endpointleri alıcı rolü istemeli", YorumController_WriteEndpoints_Should_RequireBuyerRole),
     ("Puan ekleme endpointi alıcı rolü istemeli", PuanController_PuanEkle_Should_RequireBuyerRole),
     ("Profil endpointi satıcı rolü istemeli", ProfilController_Should_RequireSellerRole),
-    ("ChatHub iki parametreli güvenli SendMessage metodu sunmalı", ChatHub_Should_ExposeSecureSendMethod)
+    ("ChatHub iki parametreli güvenli SendMessage metodu sunmalı", ChatHub_Should_ExposeSecureSendMethod),
+    ("ChatHub okundu bilgisini desteklemeli", ChatHub_Should_ExposeReadReceiptMethod),
+    ("Chat API korumalı geçmiş endpointleri sunmalı", ChatController_Should_RequireAuthAndExposeHistory)
 };
 
 var failed = new List<string>();
@@ -67,7 +70,7 @@ static void RegisterAliciDto_Should_BeValid()
     var dto = new RegisterAliciDto
     {
         Email = "test@example.com",
-        Password = "123456"
+        Password = "Aa!12345"
     };
 
     AssertValid(dto);
@@ -88,7 +91,7 @@ static void RegisterSaticiDto_Should_RequireFields()
 
     AssertContains(results, "Geçerli bir email adresi giriniz.");
     AssertContains(results, "Telefon numarası boş olamaz.");
-    AssertContains(results, "Şifre en az 6 karakter olmalı.");
+    AssertContains(results, "Şifre en az 8 karakter olmalı.");
     AssertContains(results, "Mağaza adı en az 3 karakter olmalıdır.");
     AssertContains(results, "Vergi numarası zorunludur.");
 }
@@ -202,6 +205,31 @@ static void ChatHub_Should_ExposeSecureSendMethod()
         throw new InvalidOperationException("ChatHub üzerinde SendMessage(toUserId, message) metodu bulunamadı.");
 }
 
+static void ChatHub_Should_ExposeReadReceiptMethod()
+{
+    var method = typeof(ChatHub)
+        .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+        .FirstOrDefault(m =>
+            m.Name == nameof(ChatHub.MarkConversationRead) &&
+            m.GetParameters().Length == 1 &&
+            m.GetParameters()[0].ParameterType == typeof(string));
+
+    if (method == null)
+        throw new InvalidOperationException("ChatHub üzerinde MarkConversationRead(otherUserId) metodu bulunamadı.");
+}
+
+static void ChatController_Should_RequireAuthAndExposeHistory()
+{
+    var authorize = typeof(ChatController).GetCustomAttribute<AuthorizeAttribute>();
+    if (authorize == null)
+        throw new InvalidOperationException("ChatController üzerinde Authorize attribute bulunamadı.");
+
+    AssertHttpMethod(typeof(ChatController), nameof(ChatController.GetConversations), typeof(HttpGetAttribute));
+    AssertHttpMethod(typeof(ChatController), nameof(ChatController.GetMessages), typeof(HttpGetAttribute));
+    AssertHttpMethod(typeof(ChatController), nameof(ChatController.SendMessage), typeof(HttpPostAttribute));
+    AssertHttpMethod(typeof(ChatController), nameof(ChatController.MarkConversationRead), typeof(HttpPostAttribute));
+}
+
 static List<string> Validate(object instance)
 {
     var context = new ValidationContext(instance);
@@ -247,4 +275,14 @@ static void AssertMethodRole(Type controllerType, string methodName, string expe
 
     if (!string.Equals(authorize.Roles, expectedRole, StringComparison.Ordinal))
         throw new InvalidOperationException($"{controllerType.Name}.{methodName} için beklenen rol {expectedRole}, mevcut: {authorize.Roles}");
+}
+
+static void AssertHttpMethod(Type controllerType, string methodName, Type httpAttributeType)
+{
+    var method = controllerType.GetMethod(methodName);
+    if (method == null)
+        throw new InvalidOperationException($"{controllerType.Name}.{methodName} bulunamadı.");
+
+    if (!method.GetCustomAttributes().Any(attribute => attribute.GetType() == httpAttributeType))
+        throw new InvalidOperationException($"{controllerType.Name}.{methodName} üzerinde {httpAttributeType.Name} bulunamadı.");
 }

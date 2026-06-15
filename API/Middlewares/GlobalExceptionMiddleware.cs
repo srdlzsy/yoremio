@@ -1,5 +1,6 @@
 using Application.DTOs;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.Extensions.Hosting;
 
 namespace API.Middlewares
 {
@@ -17,21 +18,35 @@ namespace API.Middlewares
                 return;
             }
 
-            var (statusCode, title) = feature.Error switch
+            var environment = context.RequestServices.GetRequiredService<IHostEnvironment>();
+            var error = feature.Error;
+
+            var (statusCode, title, exposeMessage) = error switch
             {
-                UnauthorizedAccessException => (StatusCodes.Status403Forbidden, "Yetkisiz işlem"),
-                KeyNotFoundException => (StatusCodes.Status404NotFound, "Kayıt bulunamadı"),
-                ArgumentException => (StatusCodes.Status400BadRequest, "Geçersiz istek"),
-                _ => (StatusCodes.Status500InternalServerError, "Sunucu hatası")
+                UnauthorizedAccessException => (StatusCodes.Status403Forbidden, "Yetkisiz işlem", true),
+                KeyNotFoundException => (StatusCodes.Status404NotFound, "Kayıt bulunamadı", true),
+                ArgumentException => (StatusCodes.Status400BadRequest, "Geçersiz istek", true),
+                _ => (StatusCodes.Status500InternalServerError, "Sunucu hatası", false)
             };
 
-            logger.LogError(feature.Error, "İstek işlenirken hata oluştu. Yol: {Path}, TraceId: {TraceId}", context.Request.Path, context.TraceIdentifier);
+            if (statusCode >= StatusCodes.Status500InternalServerError)
+            {
+                logger.LogError(error, "Istek islenirken beklenmeyen hata olustu. Yol: {Path}, TraceId: {TraceId}", context.Request.Path, context.TraceIdentifier);
+            }
+            else
+            {
+                logger.LogWarning(error, "Istek is kurali hatasiyla sonuclandi. Yol: {Path}, TraceId: {TraceId}", context.Request.Path, context.TraceIdentifier);
+            }
 
             context.Response.StatusCode = statusCode;
             context.Response.ContentType = "application/json";
 
+            var message = exposeMessage || environment.IsDevelopment()
+                ? $"{title}: {error.Message}"
+                : title;
+
             await context.Response.WriteAsJsonAsync(ApiResponse<object>.Fail(
-                $"{title}: {feature.Error.Message}",
+                message,
                 traceId: context.TraceIdentifier));
         }
     }

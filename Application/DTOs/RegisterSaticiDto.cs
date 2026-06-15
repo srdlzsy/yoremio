@@ -12,7 +12,7 @@ namespace Application.DTOs
         public string PhoneNumber { get; set; } = null!;
 
         [Required(ErrorMessage = "Şifre boş olamaz.")]
-        [MinLength(6, ErrorMessage = "Şifre en az 6 karakter olmalı.")]
+        [MinLength(8, ErrorMessage = "Şifre en az 8 karakter olmalı.")]
         public string Password { get; set; } = null!;
 
         [Required(ErrorMessage = "Mağaza adı zorunludur.")]
@@ -22,7 +22,7 @@ namespace Application.DTOs
         [Required(ErrorMessage = "Vergi numarası zorunludur.")]
         public string VergiNo { get; set; } = null!;
 
-        public string? Adres { get; set; } = null!;
+        public string? Adres { get; set; }
         public string? Sehir { get; set; }
         public string? Ilce { get; set; }
     }

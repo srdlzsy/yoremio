@@ -151,6 +151,13 @@ namespace Infrastructure.Services
                 return (false, null, "Email doğrulanmamış.");
             }
 
+            if (string.Equals(role, ApplicationRoles.Satici, StringComparison.Ordinal) &&
+                _verificationOptions.RequireConfirmedPhoneForSellerLogin &&
+                !await _userManager.IsPhoneNumberConfirmedAsync(user))
+            {
+                return (false, null, "Telefon doğrulanmamış.");
+            }
+
             var token = user.JwtGenerateToken(_configuration, role);
             return (true, token, null);
         }

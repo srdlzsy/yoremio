@@ -15,6 +15,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 
 JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
@@ -67,6 +68,10 @@ builder.Services.AddOptions<JwtOptions>()
     .Bind(configuration.GetSection("Jwt"))
     .ValidateDataAnnotations()
     .Validate(options => !string.IsNullOrWhiteSpace(options.Key), "Jwt:Key ayari bos olamaz.")
+    .Validate(
+        options => builder.Environment.IsDevelopment() ||
+                   !options.Key.Contains("super-secret", StringComparison.OrdinalIgnoreCase),
+        "Production ortaminda Jwt:Key appsettings icindeki varsayilan deger olamaz.")
     .ValidateOnStart();
 
 builder.Services.AddInfrastructure(configuration);
@@ -97,6 +102,29 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
+    });
+});
+
+var rateLimitPermitLimit = configuration.GetValue<int?>("RateLimiting:PermitLimit") ?? 300;
+var rateLimitWindowSeconds = configuration.GetValue<int?>("RateLimiting:WindowSeconds") ?? 60;
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var partitionKey = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous";
+
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = rateLimitPermitLimit,
+            Window = TimeSpan.FromSeconds(rateLimitWindowSeconds),
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true
+        });
     });
 });
 
@@ -158,12 +186,16 @@ logger.LogInformation(
     jwtSettings.Issuer,
     jwtSettings.Audience);
 
+var applyMigrations = configuration.GetValue<bool?>("Startup:ApplyMigrations") ?? app.Environment.IsDevelopment();
+var seedSampleData = configuration.GetValue<bool?>("Startup:SeedSampleData") ?? app.Environment.IsDevelopment();
+
 using (var scope = app.Services.CreateScope())
 {
     await YoremioStartupInitializer.InitializeAsync(
         scope.ServiceProvider,
         logger,
-        seedSampleData: app.Environment.IsDevelopment());
+        applyMigrations: applyMigrations,
+        seedSampleData: seedSampleData);
 }
 
 if (app.Environment.IsDevelopment())
@@ -176,12 +208,28 @@ app.UseExceptionHandler(exceptionApp =>
     exceptionApp.Run(GlobalExceptionMiddleware.HandleAsync);
 });
 
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
 app.UseMiddleware<RequestContextMiddleware>();
 app.UseHttpLogging();
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    context.Response.Headers["X-Permitted-Cross-Domain-Policies"] = "none";
+    await next();
+});
+
 app.UseStaticFiles();
 app.UseCors("Frontend");
 app.UseHttpsRedirection();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");

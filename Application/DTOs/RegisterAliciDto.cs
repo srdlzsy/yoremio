@@ -9,7 +9,7 @@ namespace Application.DTOs
         public string Email { get; set; } = null!;
 
         [Required(ErrorMessage = "Şifre boş olamaz.")]
-        [MinLength(6, ErrorMessage = "Şifre en az 6 karakter olmalı.")]
+        [MinLength(8, ErrorMessage = "Şifre en az 8 karakter olmalı.")]
         public string Password { get; set; } = null!;
     }
 }

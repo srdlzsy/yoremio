@@ -24,6 +24,7 @@ namespace Infrastructure.Persistence
         public DbSet<TalepTeklif> TalepTeklifler { get; set; } = null!;
         public DbSet<Yorum> Yorumlar { get; set; } = null!;
         public DbSet<Puan> Puanlar { get; set; } = null!;
+        public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -147,6 +148,28 @@ namespace Infrastructure.Persistence
             builder.Entity<Puan>()
                 .HasIndex(p => new { p.KullaniciId, p.UrunId })
                 .IsUnique();
+
+            builder.Entity<ChatMessage>()
+                .Property(m => m.Message)
+                .HasMaxLength(1000);
+
+            builder.Entity<ChatMessage>()
+                .HasOne(m => m.Sender)
+                .WithMany()
+                .HasForeignKey(m => m.SenderId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<ChatMessage>()
+                .HasOne(m => m.Receiver)
+                .WithMany()
+                .HasForeignKey(m => m.ReceiverId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<ChatMessage>()
+                .HasIndex(m => new { m.SenderId, m.ReceiverId, m.SentAt });
+
+            builder.Entity<ChatMessage>()
+                .HasIndex(m => new { m.ReceiverId, m.SenderId, m.SentAt });
 
             builder.Entity<UrunFavori>()
                 .HasIndex(f => new { f.KullaniciId, f.UrunId })

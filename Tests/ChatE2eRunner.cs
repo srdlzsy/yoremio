@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR.Client;
 
@@ -38,6 +39,9 @@ internal static class ChatE2eRunner
 
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             var result = await received.Task.WaitAsync(timeoutCts.Token);
+
+            await AssertMessageInHistoryAsync(httpClient, sender.Token, receiver.UserId, message);
+            await AssertMessageInHistoryAsync(httpClient, receiver.Token, sender.UserId, message);
 
             Console.WriteLine($"[CHAT-E2E][OK] from={result.FromUserId} message={result.Message}");
         }
@@ -92,5 +96,19 @@ internal static class ChatE2eRunner
             throw new InvalidOperationException($"Token or userId missing in login response: {loginBody}");
 
         return (token, userId);
+    }
+
+    private static async Task AssertMessageInHistoryAsync(HttpClient httpClient, string token, string otherUserId, string expectedMessage)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/chat/messages/{otherUserId}?page=1&pageSize=10");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"History failed ({response.StatusCode}): {body}");
+
+        if (!body.Contains(expectedMessage, StringComparison.Ordinal))
+            throw new InvalidOperationException($"History does not contain sent message: {body}");
     }
 }

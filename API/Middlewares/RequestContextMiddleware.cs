@@ -5,6 +5,7 @@ namespace API.Middlewares
     public sealed class RequestContextMiddleware
     {
         private const string CorrelationHeaderName = "X-Correlation-Id";
+        private const int MaxCorrelationIdLength = 100;
 
         private readonly RequestDelegate _next;
         private readonly ILogger<RequestContextMiddleware> _logger;
@@ -36,7 +37,11 @@ namespace API.Middlewares
             if (context.Request.Headers.TryGetValue(CorrelationHeaderName, out var headerValue) &&
                 !StringValues.IsNullOrEmpty(headerValue))
             {
-                return headerValue.ToString();
+                var correlationId = headerValue.ToString().Trim();
+                if (!string.IsNullOrWhiteSpace(correlationId) && correlationId.Length <= MaxCorrelationIdLength)
+                {
+                    return correlationId;
+                }
             }
 
             return Guid.NewGuid().ToString("N");
