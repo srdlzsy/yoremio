@@ -285,6 +285,11 @@ FakesAssemblies/
 .ntvs_analysis.dat
 node_modules/
 
+# Local environment files
+.env
+.env.*
+!.env.example
+
 # Visual Studio 6 build log
 *.plg
 
