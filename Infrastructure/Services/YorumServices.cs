@@ -9,11 +9,13 @@ namespace Infrastructure.Services
     {
         private readonly IYorumRepository _yorumRepository;
         private readonly IUrunRepository _urunRepository;
+        private readonly ITalepRepository _talepRepository;
 
-        public YorumServices(IYorumRepository yorumRepository, IUrunRepository urunRepository)
+        public YorumServices(IYorumRepository yorumRepository, IUrunRepository urunRepository, ITalepRepository talepRepository)
         {
             _yorumRepository = yorumRepository;
             _urunRepository = urunRepository;
+            _talepRepository = talepRepository;
         }
 
         public async Task<YorumDto> YorumEkleAsync(YorumEkleDto dto, string kullaniciId)
@@ -21,6 +23,9 @@ namespace Infrastructure.Services
             var urun = await _urunRepository.GetByIdAsync(dto.UrunId);
             if (urun == null)
                 throw new Exception("Ürün bulunamadı.");
+
+            if (!await _talepRepository.HasAcceptedDemandForProductAsync(kullaniciId, dto.UrunId))
+                throw new UnauthorizedAccessException("Yorum yapabilmek icin bu urunle ilgili kabul edilmis bir talebiniz olmalidir.");
 
             var yorum = new Yorum
             {

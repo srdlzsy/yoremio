@@ -7,6 +7,7 @@ namespace Application.DTOs
         public string? UserName { get; set; }
         public string? PhoneNumber { get; set; }
         public string? Role { get; set; }
+        public IReadOnlyCollection<string> Roles { get; set; } = Array.Empty<string>();
         public bool EmailConfirmed { get; set; }
         public bool PhoneNumberConfirmed { get; set; }
     }

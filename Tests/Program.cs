@@ -28,6 +28,7 @@ var tests = new (string Name, Action Test)[]
     ("Yorum yazma endpointleri alıcı rolü istemeli", YorumController_WriteEndpoints_Should_RequireBuyerRole),
     ("Puan ekleme endpointi alıcı rolü istemeli", PuanController_PuanEkle_Should_RequireBuyerRole),
     ("Profil endpointi satıcı rolü istemeli", ProfilController_Should_RequireSellerRole),
+    ("Kategori yazma endpointleri admin rolü istemeli", KategoriController_WriteEndpoints_Should_RequireAdminRole),
     ("ChatHub iki parametreli güvenli SendMessage metodu sunmalı", ChatHub_Should_ExposeSecureSendMethod),
     ("ChatHub okundu bilgisini desteklemeli", ChatHub_Should_ExposeReadReceiptMethod),
     ("Chat API korumalı geçmiş endpointleri sunmalı", ChatController_Should_RequireAuthAndExposeHistory)
@@ -130,7 +131,7 @@ static void UrunEkleDto_Should_RejectInvalidImageType()
 
 static void ApplicationRoles_Should_MatchExpectedValues()
 {
-    if (ApplicationRoles.Satici != "SATICI" || ApplicationRoles.Alici != "ALICI")
+    if (ApplicationRoles.Admin != "ADMIN" || ApplicationRoles.Satici != "SATICI" || ApplicationRoles.Alici != "ALICI")
         throw new InvalidOperationException("Rol sabitleri beklenen değerlerle eşleşmiyor.");
 }
 
@@ -180,6 +181,13 @@ static void ProfilController_Should_RequireSellerRole()
     var allowAnonymous = trustMethod.GetCustomAttribute<AllowAnonymousAttribute>();
     if (allowAnonymous == null)
         throw new InvalidOperationException("ProfilController.GetSaticiGuvenSkoru endpointi AllowAnonymous olmalıdır.");
+}
+
+static void KategoriController_WriteEndpoints_Should_RequireAdminRole()
+{
+    AssertMethodRole(typeof(KategoriController), nameof(KategoriController.Create), ApplicationRoles.Admin);
+    AssertMethodRole(typeof(KategoriController), nameof(KategoriController.Update), ApplicationRoles.Admin);
+    AssertMethodRole(typeof(KategoriController), nameof(KategoriController.Delete), ApplicationRoles.Admin);
 }
 
 static void TalepController_Endpoints_Should_RequireExpectedRoles()

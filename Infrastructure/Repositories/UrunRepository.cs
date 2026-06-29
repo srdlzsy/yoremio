@@ -45,6 +45,7 @@ namespace Infrastructure.Repositories
         {
             return await _dbSet.Include(u => u.Resimler)
                                .Include(u => u.Videolar)
+                               .Include(u => u.Kategori)
                                .Include(u => u.Puanlar)
                                .Include(u => u.Favoriler)
                                .Include(u => u.Satici)
@@ -57,6 +58,7 @@ namespace Infrastructure.Repositories
         {
             return await _dbSet.Include(u => u.Resimler)
                                .Include(u => u.Videolar)
+                               .Include(u => u.Kategori)
                                .Include(u => u.Puanlar)
                                .Include(u => u.Favoriler)
                                .Include(u => u.Satici)
@@ -69,6 +71,7 @@ namespace Infrastructure.Repositories
         {
             return await _dbSet.Include(u => u.Resimler)
                                .Include(u => u.Videolar)
+                               .Include(u => u.Kategori)
                                .Include(u => u.Puanlar)
                                .Include(u => u.Favoriler)
                                .Include(u => u.Satici)
@@ -83,6 +86,7 @@ namespace Infrastructure.Repositories
         {
             return await _dbSet.Include(u => u.Videolar)
                                .Include(u => u.Resimler)
+                               .Include(u => u.Kategori)
                                .Include(u => u.Puanlar)
                                .Include(u => u.Favoriler)
                                .Include(u => u.Satici)
@@ -104,6 +108,7 @@ namespace Infrastructure.Repositories
             var urunler = _dbSet
                 .Include(u => u.Resimler)
                 .Include(u => u.Videolar)
+                .Include(u => u.Kategori)
                 .Include(u => u.Puanlar)
                 .Include(u => u.Favoriler)
                 .Include(u => u.Satici)
@@ -207,6 +212,7 @@ namespace Infrastructure.Repositories
                 .AsNoTracking()
                 .Include(u => u.Resimler)
                 .Include(u => u.Videolar)
+                .Include(u => u.Kategori)
                 .Include(u => u.Puanlar)
                 .Include(u => u.Favoriler)
                 .Include(u => u.Satici)
@@ -249,6 +255,7 @@ namespace Infrastructure.Repositories
                 .AsNoTracking()
                 .Include(u => u.Resimler)
                 .Include(u => u.Videolar)
+                .Include(u => u.Kategori)
                 .Include(u => u.Puanlar)
                 .Include(u => u.Favoriler)
                 .Include(u => u.Satici)

@@ -11,15 +11,31 @@ namespace Infrastructure.Extensions
     {
         public static string JwtGenerateToken(this ApplicationUser user, IConfiguration configuration, string role)
         {
-            var claims = new[]
-    {
-        new Claim(ClaimTypes.NameIdentifier, user.Id),          // Kullanıcı Id'si (bizi user.Id ile eşleştiriyor)
-        new Claim(JwtRegisteredClaimNames.Sub, user.Id),
-        new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""),
-        new Claim(ClaimTypes.Name, user.UserName ?? ""),
-        new Claim(ClaimTypes.Role, role),
-        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-    };
+            return user.JwtGenerateToken(configuration, new[] { role });
+        }
+
+        public static string JwtGenerateToken(this ApplicationUser user, IConfiguration configuration, IEnumerable<string> roles)
+        {
+            var roleList = roles
+                .Where(role => !string.IsNullOrWhiteSpace(role))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            if (roleList.Length == 0)
+            {
+                throw new Exception("JWT icin en az bir rol gereklidir.");
+            }
+
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, user.Id),
+                new(JwtRegisteredClaimNames.Sub, user.Id),
+                new(JwtRegisteredClaimNames.Email, user.Email ?? ""),
+                new(ClaimTypes.Name, user.UserName ?? ""),
+                new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            };
+
+            claims.AddRange(roleList.Select(role => new Claim(ClaimTypes.Role, role)));
 
             var keyString = configuration["Jwt:Key"];
             if (string.IsNullOrEmpty(keyString))

@@ -8,6 +8,7 @@ namespace Application.DTOs
         public decimal Fiyat { get; set; }
         public int StokMiktari { get; set; }
         public int KategoriId { get; set; }
+        public string? KategoriAdi { get; set; }
         public string SaticiId { get; set; } = string.Empty;
         public string? SaticiMagazaAdi { get; set; }
         public string? SaticiSehir { get; set; }

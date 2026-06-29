@@ -12,6 +12,7 @@ namespace Application.Interfaces
         Task<(bool Succeeded, string? Error)> RegisterSaticiAsync(RegisterSaticiDto dto);
         Task<(bool Succeeded, string? Error)> RegisterAliciAsync(RegisterAliciDto dto);
         Task<(bool Succeeded, string? Token, string? Error)> LoginAsync(LoginDto dto);
+        Task<(bool Succeeded, string? Error)> ResendVerificationAsync(ResendVerificationDto dto);
         Task<bool> ConfirmEmailAsync(string userId, string token);
         Task<bool> ConfirmPhoneAsync(string userId, string token);
     }

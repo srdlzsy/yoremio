@@ -54,6 +54,10 @@ namespace Infrastructure.Services
                     Sehir = dto.Sehir,
                     Ilce = dto.Ilce,
                     AktifMi = false
+                },
+                AliciProfili = new AliciProfili
+                {
+                    AktifMi = true
                 }
             };
 
@@ -64,7 +68,7 @@ namespace Infrastructure.Services
                 return (false, string.Join(" | ", result.Errors.Select(e => e.Description)));
             }
 
-            var roleResult = await _userManager.AddToRoleAsync(user, ApplicationRoles.Satici);
+            var roleResult = await _userManager.AddToRolesAsync(user, new[] { ApplicationRoles.Satici, ApplicationRoles.Alici });
             if (!roleResult.Succeeded)
             {
                 await _userManager.DeleteAsync(user);
@@ -139,27 +143,66 @@ namespace Infrastructure.Services
             }
 
             var userRoles = await _userManager.GetRolesAsync(user);
-            var role = userRoles.FirstOrDefault();
-            if (string.IsNullOrWhiteSpace(role))
+            if (userRoles.Count == 0)
             {
                 return (false, null, "Kullanıcı rolü bulunamadı.");
             }
 
-            if (string.Equals(role, ApplicationRoles.Satici, StringComparison.Ordinal) &&
+            if (userRoles.Contains(ApplicationRoles.Satici) &&
                 !await _userManager.IsEmailConfirmedAsync(user))
             {
                 return (false, null, "Email doğrulanmamış.");
             }
 
-            if (string.Equals(role, ApplicationRoles.Satici, StringComparison.Ordinal) &&
+            if (userRoles.Contains(ApplicationRoles.Satici) &&
                 _verificationOptions.RequireConfirmedPhoneForSellerLogin &&
                 !await _userManager.IsPhoneNumberConfirmedAsync(user))
             {
                 return (false, null, "Telefon doğrulanmamış.");
             }
 
-            var token = user.JwtGenerateToken(_configuration, role);
+            var token = user.JwtGenerateToken(_configuration, userRoles);
             return (true, token, null);
+        }
+
+        public async Task<(bool Succeeded, string? Error)> ResendVerificationAsync(ResendVerificationDto dto)
+        {
+            var user = await _userManager.FindByEmailAsync(dto.Email);
+            if (user == null)
+            {
+                return (true, null);
+            }
+
+            var userRoles = await _userManager.GetRolesAsync(user);
+            if (!userRoles.Contains(ApplicationRoles.Satici))
+            {
+                return (true, null);
+            }
+
+            if (await _userManager.IsEmailConfirmedAsync(user) &&
+                await _userManager.IsPhoneNumberConfirmedAsync(user))
+            {
+                return (true, null);
+            }
+
+            try
+            {
+                if (!await _userManager.IsEmailConfirmedAsync(user))
+                {
+                    await SendEmailConfirmationAsync(user);
+                }
+
+                if (!await _userManager.IsPhoneNumberConfirmedAsync(user))
+                {
+                    await SendPhoneConfirmationAsync(user);
+                }
+
+                return (true, null);
+            }
+            catch (Exception ex)
+            {
+                return (false, "Dogrulama mesaji gonderilemedi: " + ex.Message);
+            }
         }
 
         public async Task<bool> ConfirmEmailAsync(string userId, string token)
@@ -193,6 +236,38 @@ namespace Infrastructure.Services
 
             var result = await _userManager.ChangePhoneNumberAsync(user, user.PhoneNumber, token);
             return result.Succeeded;
+        }
+
+        private async Task SendEmailConfirmationAsync(ApplicationUser user)
+        {
+            if (string.IsNullOrWhiteSpace(user.Email))
+            {
+                throw new InvalidOperationException("Kullanici email adresi bos olamaz.");
+            }
+
+            var emailToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+            var encodedEmailToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(emailToken));
+            var emailConfirmationLink = BuildEmailConfirmationLink(user.Id, encodedEmailToken);
+
+            await _emailSender.SendEmailAsync(
+                user.Email,
+                "E-Posta Dogrulama",
+                $"Yoremio hesabiniz icin email dogrulama linki: <a href='{emailConfirmationLink}'>Email adresimi dogrula</a>");
+        }
+
+        private async Task SendPhoneConfirmationAsync(ApplicationUser user)
+        {
+            if (string.IsNullOrWhiteSpace(user.PhoneNumber))
+            {
+                throw new InvalidOperationException("Kullanici telefon numarasi bos olamaz.");
+            }
+
+            var smsCode = await _userManager.GenerateChangePhoneNumberTokenAsync(user, user.PhoneNumber);
+            var phoneConfirmationLink = BuildPhoneConfirmationLink(user.Id, smsCode);
+
+            await _smsSender.SendSmsAsync(
+                user.PhoneNumber,
+                $"Yoremio telefon dogrulama kodunuz: {smsCode}. Dogrulama baglantisi: {phoneConfirmationLink}");
         }
 
         private string BuildEmailConfirmationLink(string userId, string encodedEmailToken)

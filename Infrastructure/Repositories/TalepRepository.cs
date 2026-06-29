@@ -66,6 +66,17 @@ namespace Infrastructure.Repositories
                 .FirstOrDefaultAsync(t => t.TalepId == talepId && t.SaticiId == saticiId);
         }
 
+        public async Task<bool> HasAcceptedDemandForProductAsync(string aliciId, int urunId)
+        {
+            return await _dbContext.Set<Talep>()
+                .AsNoTracking()
+                .AnyAsync(t =>
+                    t.AliciId == aliciId &&
+                    t.UrunId == urunId &&
+                    t.Durum == Domain.Constants.TalepDurumlari.Anlasildi &&
+                    t.Teklifler.Any(teklif => teklif.Durum == Domain.Constants.TalepTeklifDurumlari.Kabul));
+        }
+
         public async Task AddTeklifAsync(TalepTeklif teklif)
         {
             await _dbContext.Set<TalepTeklif>().AddAsync(teklif);

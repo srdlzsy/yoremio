@@ -243,6 +243,7 @@ namespace Infrastructure.Services
                 Fiyat = urun.Fiyat,
                 StokMiktari = urun.StokMiktari,
                 KategoriId = urun.KategoriId,
+                KategoriAdi = urun.Kategori?.Adi,
                 SaticiId = urun.SaticiId,
                 SaticiMagazaAdi = urun.Satici?.MagazaAdi,
                 SaticiSehir = urun.Satici?.Sehir,

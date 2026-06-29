@@ -9,6 +9,7 @@ namespace Domain.Interfaces
         Task<IReadOnlyCollection<Talep>> GetSaticiTalepleriAsync(string saticiId);
         Task<TalepTeklif?> GetTeklifByIdWithDetailsAsync(int teklifId);
         Task<TalepTeklif?> GetTeklifByTalepVeSaticiAsync(int talepId, string saticiId);
+        Task<bool> HasAcceptedDemandForProductAsync(string aliciId, int urunId);
         Task AddTeklifAsync(TalepTeklif teklif);
     }
 }

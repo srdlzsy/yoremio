@@ -45,7 +45,7 @@ namespace Infrastructure.Persistence
 
         private static async Task EnsureRolesAsync(RoleManager<IdentityRole> roleManager, ILogger logger)
         {
-            foreach (var role in new[] { ApplicationRoles.Satici, ApplicationRoles.Alici })
+            foreach (var role in new[] { ApplicationRoles.Admin, ApplicationRoles.Satici, ApplicationRoles.Alici })
             {
                 if (await roleManager.RoleExistsAsync(role))
                 {
@@ -69,6 +69,7 @@ namespace Infrastructure.Persistence
             CancellationToken cancellationToken)
         {
             var categoryIds = await EnsureCategoriesAsync(context, cancellationToken);
+            await EnsureAdminUserAsync(userManager);
             var sellers = await EnsureSellerUsersAsync(context, userManager, cancellationToken);
             var buyers = await EnsureBuyerUsersAsync(context, userManager, cancellationToken);
             var productIds = await EnsureProductsAsync(context, categoryIds, sellers, cancellationToken);
@@ -79,6 +80,17 @@ namespace Infrastructure.Persistence
             await EnsureDemandsAsync(context, sellers, buyers, productIds, cancellationToken);
 
             logger.LogInformation("Ornek development verileri hazirlandi. Satici: {SellerCount}, Alici: {BuyerCount}, Urun: {ProductCount}", sellers.Count, buyers.Count, productIds.Count);
+        }
+
+        private static async Task EnsureAdminUserAsync(UserManager<ApplicationUser> userManager)
+        {
+            await EnsureUserAsync(
+                userManager,
+                "admin@demo.yoremio.local",
+                "+905300000000",
+                ApplicationRoles.Admin,
+                emailConfirmed: true,
+                phoneConfirmed: true);
         }
 
         private static async Task<Dictionary<string, int>> EnsureCategoriesAsync(YoremioContext context, CancellationToken cancellationToken)
@@ -141,6 +153,7 @@ namespace Infrastructure.Persistence
                     ApplicationRoles.Satici,
                     emailConfirmed: true,
                     phoneConfirmed: true);
+                await EnsureUserRoleAsync(userManager, user, ApplicationRoles.Alici);
 
                 var profile = await context.SaticiProfilleri.SingleOrDefaultAsync(x => x.KullaniciId == user.Id, cancellationToken);
                 if (profile == null)
@@ -603,16 +616,21 @@ namespace Infrastructure.Persistence
                 }
             }
 
+            await EnsureUserRoleAsync(userManager, user, role);
+
+            return user;
+        }
+
+        private static async Task EnsureUserRoleAsync(UserManager<ApplicationUser> userManager, ApplicationUser user, string role)
+        {
             if (!await userManager.IsInRoleAsync(user, role))
             {
                 var roleResult = await userManager.AddToRoleAsync(user, role);
                 if (!roleResult.Succeeded)
                 {
-                    throw new InvalidOperationException($"Seed kullanicisina rol atanamadi: {email}. {string.Join(" | ", roleResult.Errors.Select(e => e.Description))}");
+                    throw new InvalidOperationException($"Seed kullanicisina rol atanamadi: {user.Email}. {string.Join(" | ", roleResult.Errors.Select(e => e.Description))}");
                 }
             }
-
-            return user;
         }
 
         private static string[] DemoImageUrls(string slug, int count)

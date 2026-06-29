@@ -66,17 +66,38 @@ namespace API.Controllers
 
             var handler = new JwtSecurityTokenHandler();
             var jwtToken = handler.ReadJwtToken(result.Token);
-            var claims = jwtToken.Claims.ToDictionary(c => c.Type, c => c.Value);
+            var claims = jwtToken.Claims.ToList();
+            var roles = claims
+                .Where(c => c.Type == ClaimTypes.Role)
+                .Select(c => c.Value)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
 
             var response = new LoginResponseDto
             {
                 Token = result.Token,
-                UserId = claims.GetValueOrDefault(ClaimTypes.NameIdentifier),
-                Email = claims.GetValueOrDefault(JwtRegisteredClaimNames.Email),
-                Role = claims.GetValueOrDefault(ClaimTypes.Role)
+                UserId = claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value,
+                Email = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Email)?.Value,
+                Role = roles.FirstOrDefault(),
+                Roles = roles
             };
 
             return Ok(ApiResponse<LoginResponseDto>.Ok(response, "Giriş başarılı.", HttpContext.TraceIdentifier));
+        }
+
+        [HttpPost("resend-verification")]
+        public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationDto dto)
+        {
+            var result = await _authService.ResendVerificationAsync(dto);
+            if (!result.Succeeded)
+            {
+                return BadRequest(ApiResponse<object>.Fail("Dogrulama mesaji gonderilemedi.", result.Error, HttpContext.TraceIdentifier));
+            }
+
+            return Ok(ApiResponse<object>.Ok(
+                null,
+                "Dogrulama mesaji varsa yeniden gonderildi.",
+                HttpContext.TraceIdentifier));
         }
 
         [Authorize]
@@ -104,6 +125,7 @@ namespace API.Controllers
                 UserName = user.UserName,
                 PhoneNumber = user.PhoneNumber,
                 Role = roles.FirstOrDefault(),
+                Roles = roles.ToArray(),
                 EmailConfirmed = user.EmailConfirmed,
                 PhoneNumberConfirmed = user.PhoneNumberConfirmed
             };
@@ -180,6 +202,7 @@ namespace API.Controllers
             public string? UserId { get; set; }
             public string? Email { get; set; }
             public string? Role { get; set; }
+            public IReadOnlyCollection<string> Roles { get; set; } = Array.Empty<string>();
         }
     }
 }

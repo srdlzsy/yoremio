@@ -13,12 +13,18 @@ namespace Infrastructure.Services
         private readonly HttpClient _httpClient;
         private readonly TwilioSmsOptions _options;
         private readonly ILogger<SmsSender> _logger;
+        private readonly IVerificationOutbox _verificationOutbox;
 
-        public SmsSender(HttpClient httpClient, IOptions<TwilioSmsOptions> options, ILogger<SmsSender> logger)
+        public SmsSender(
+            HttpClient httpClient,
+            IOptions<TwilioSmsOptions> options,
+            ILogger<SmsSender> logger,
+            IVerificationOutbox verificationOutbox)
         {
             _httpClient = httpClient;
             _options = options.Value;
             _logger = logger;
+            _verificationOutbox = verificationOutbox;
         }
 
         public async Task SendSmsAsync(string phoneNumber, string message)
@@ -35,6 +41,7 @@ namespace Infrastructure.Services
                     "Mock SMS sender aktif. SMS gönderimi atlandı. To: {Phone}, Message: {Message}",
                     phoneNumber,
                     message);
+                _verificationOutbox.Add("sms", phoneNumber, null, message);
 
                 return;
             }

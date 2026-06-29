@@ -57,6 +57,69 @@ Production notları:
 
 ## 3. Frontend İçin Temel Kurallar
 
+### 3.0 App Bootstrap
+
+UI acilisinda once bu endpoint cagrilabilir. Amaci frontend'in kategori listesini, desteklenen rolleri, urun siralama seceneklerini, feature flag'leri ve upload limitlerini tek sozlesmeden almasidir.
+
+`GET /api/App/bootstrap`
+
+Auth: Yok
+
+Response `data`:
+
+```json
+{
+  "environment": "Development",
+  "roles": ["ADMIN", "ALICI", "SATICI"],
+  "categories": [
+    {
+      "id": 1,
+      "adi": "Bal",
+      "aciklama": "Yerel bal urunleri"
+    }
+  ],
+  "productSorts": [
+    "newest",
+    "oldest",
+    "price_asc",
+    "price_desc",
+    "name_asc",
+    "name_desc",
+    "top_rated",
+    "most_reviewed",
+    "most_favorited"
+  ],
+  "features": {
+    "chatEnabled": true,
+    "demandFlowEnabled": true,
+    "favoritesEnabled": true,
+    "ratingsEnabled": true,
+    "reviewsEnabled": true,
+    "devVerificationInboxEnabled": true,
+    "cloudinaryEnabled": false
+  },
+  "verification": {
+    "requireConfirmedPhoneForSellerLogin": true,
+    "devVerificationInboxUrl": "/dev/verification"
+  },
+  "uploads": {
+    "maxImageBytes": 5242880,
+    "maxVideoBytes": 52428800,
+    "maxMultipartBodyBytes": 100000000,
+    "imageContentTypePrefixes": ["image/"],
+    "videoContentTypePrefixes": ["video/"]
+  }
+}
+```
+
+UI kullanimi:
+
+- Kategori filtrelerini `categories` ile doldurun.
+- Urun siralama select'ini `productSorts` ile doldurun.
+- Dosya yukleme validasyonunda `uploads` limitlerini kullanin.
+- Development ortaminda `features.devVerificationInboxEnabled=true` ise satici dogrulama ekraninda `verification.devVerificationInboxUrl` linkini gosterin.
+- Feature flag kapaliysa ilgili UI aksiyonunu gizleyin veya pasif gosterin.
+
 ### 3.1 Auth Header
 
 Korumalı endpointlerde:
@@ -72,7 +135,8 @@ Login response içinden UI'ın saklaması gereken minimum state:
   "token": "jwt-token",
   "userId": "identity-user-id",
   "email": "user@example.com",
-  "role": "ALICI"
+  "role": "ALICI",
+  "roles": ["ALICI"]
 }
 ```
 
@@ -82,6 +146,11 @@ Login response içinden UI'ın saklaması gereken minimum state:
 - Uygulama açılışında token varsa `GET /api/Auth/me` ile oturumu doğrulayın.
 - `401` gelirse token'ı temizleyip login ekranına yönlendirin.
 - `403` gelirse kullanıcının rolü ekran için yetkisizdir; login'e atmak yerine yetkisiz ekranı göstermek daha doğru olur.
+
+Rol notu:
+
+- `role` geriye uyumluluk icin tekil ilk roldur; yeni UI yetki kontrolunde `roles` listesini esas almalidir.
+- Satici kullanicilar hem `SATICI` hem `ALICI` rolu tasiyabilir.
 
 ### 3.2 Tarih/Saat
 
@@ -242,7 +311,7 @@ Ana ekranlar:
 - `POST /api/Talep/{talepId}/teklif`
 - `GET /api/Chat/conversations`
 
-Not: Kategori oluşturma/güncelleme/silme endpointleri şu an `SATICI` rolüne açıktır. UI'da bu alanı isterseniz sadece yönetici benzeri satıcılar için görünür yapacak ayrı frontend kuralı ekleyebilirsiniz; backend tarafında ayrı `ADMIN` rolü yoktur.
+Not: Kategori oluşturma/güncelleme/silme endpointleri `ADMIN` rolü ister. Satıcı panelinde kategori CRUD gösterilmemeli, sadece kategori seçimi yapılmalıdır.
 
 ## 5. Ekran Akışları
 
@@ -265,6 +334,7 @@ Not: Kategori oluşturma/güncelleme/silme endpointleri şu an `SATICI` rolüne 
     "userName": "buyer@example.com",
     "phoneNumber": "+905321000001",
     "role": "ALICI",
+    "roles": ["ALICI"],
     "emailConfirmed": true,
     "phoneNumberConfirmed": true
   },
@@ -525,7 +595,8 @@ Response `data`:
   "token": "jwt-token",
   "userId": "user-id",
   "email": "seller@example.com",
-  "role": "SATICI"
+  "role": "SATICI",
+  "roles": ["SATICI", "ALICI"]
 }
 ```
 
@@ -549,6 +620,7 @@ Response `data`:
   "userName": "seller@example.com",
   "phoneNumber": "+905551112233",
   "role": "SATICI",
+  "roles": ["SATICI", "ALICI"],
   "emailConfirmed": true,
   "phoneNumberConfirmed": true
 }
@@ -599,6 +671,133 @@ Response:
   "traceId": "..."
 }
 ```
+
+### 6.7 Dogrulama Mesajini Yeniden Gonder
+
+`POST /api/Auth/resend-verification`
+
+Auth: Yok
+
+Kullanim:
+
+- Satici kayit sonrasi kullanici email/SMS mesajini bulamazsa.
+- Login denemesinde "email dogrulanmamis" veya "telefon dogrulanmamis" hatasi alirsa.
+- Development ortaminda mock kutuya yeni email/SMS mesajlari dusurmek icin.
+
+Body:
+
+```json
+{
+  "email": "seller@example.com"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Dogrulama mesaji varsa yeniden gonderildi.",
+  "data": null,
+  "traceId": "..."
+}
+```
+
+Guvenlik davranisi:
+
+- Email sistemde yoksa veya kullanici satici degilse yine basarili gibi cevap doner.
+- Bu davranis hesap/email varligini disariya sizdirmamak icindir.
+- Email ve telefon zaten dogrulanmissa yeni mesaj gonderilmez, yine basarili cevap doner.
+- Eksik olan dogrulamalar icin yeniden mesaj uretilir. Ornek: email dogrulanmis ama telefon dogrulanmamis ise sadece SMS uretilir.
+
+UI onerisi:
+
+- Satici kayit basarili olduktan sonra "Dogrulama mesajlarini tekrar gonder" butonu koyun.
+- Login `401` donup mesaj dogrulama eksigine isaret ediyorsa ayni butonu login ekraninda da gosterin.
+- Development modunda buton sonrasi `/dev/verification` ekranina link verilebilir.
+
+### 6.8 Development Mock Dogrulama Kutusu
+
+Bu proje simdilik ucretli SMS/email servislerine bagimli kalmadan gelistirilebilsin diye Development ortaminda mock dogrulama kutusu sunar.
+
+Ne zaman kullanilir:
+
+- `Email:Smtp:UseMockSender=true`
+- `Sms:Twilio:UseMockSender=true`
+- `ASPNETCORE_ENVIRONMENT=Development`
+
+UI sayfasi:
+
+`GET /dev/verification`
+
+Auth: Yok
+
+Ortam: Sadece Development
+
+Davranis:
+
+- Tarayicida mock email ve SMS mesajlarini listeler.
+- Satici kaydi sonrasi uretilen email dogrulama linki ve telefon dogrulama kodu burada gorunur.
+- Sayfa 5 saniyede bir otomatik yenilenir.
+- Mesajlar uygulama belleğinde tutulur; API yeniden baslatilirsa temizlenir.
+- Production ortaminda `404 Not Found` doner.
+
+Frontend veya test araclari icin JSON mesaj listesi:
+
+`GET /dev/verification/messages`
+
+Response `data`:
+
+```json
+[
+  {
+    "id": "9d3457e5-7cd6-4d72-b160-1d7d1ac6e6f8",
+    "channel": "email",
+    "to": "seller@example.com",
+    "subject": "E-Posta Dogrulama",
+    "body": "Lutfen e-posta adresinizi dogrulamak icin <a href='http://localhost:5089/api/auth/confirm-email?...'>buraya tiklayin</a>",
+    "createdAtUtc": "2026-06-29T12:30:00Z"
+  },
+  {
+    "id": "3811d71a-29c4-44b8-98e7-1698de1696d4",
+    "channel": "sms",
+    "to": "+905551112233",
+    "subject": null,
+    "body": "Yoremio telefon dogrulama kodunuz: 123456. Dogrulama baglantisi: http://localhost:5089/api/auth/confirm-phone?...",
+    "createdAtUtc": "2026-06-29T12:30:01Z"
+  }
+]
+```
+
+Mesaj kutusunu temizleme:
+
+`DELETE /dev/verification/messages`
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Mock dogrulama kutusu temizlendi.",
+  "data": null,
+  "traceId": "..."
+}
+```
+
+UI akisi:
+
+1. Satici kayit formu `POST /api/Auth/register/satici` cagirir.
+2. Basarili response sonrasi UI kullaniciya "Email ve telefon dogrulama gerekiyor" mesaji gosterir.
+3. Development modunda gelistirici veya test kullanicisi `/dev/verification` ekranini acar.
+4. Email mesajindaki linke tiklanir: `GET /api/Auth/confirm-email`.
+5. SMS mesajindaki linke tiklanir veya kod UI tarafinda ayrica islenecekse body icinden kod okunur.
+6. Iki dogrulama da tamamlaninca satici profili aktif olur.
+
+Gercek servis notu:
+
+- Smtp ve Twilio ayarlari doldurulursa mock kapatilip gercek gonderim yapilabilir.
+- Ucretsiz/deneme servislerin limitleri zamanla degisebildigi icin production karari verilmeden once guncel kota ve KVKK/veri isleme kosullari ayrica kontrol edilmelidir.
+- Simdilik en maliyetsiz ve stabil gelistirme yolu bu mock dogrulama kutusudur.
 
 ## 7. Profil API
 
@@ -727,7 +926,7 @@ Auth: Yok
 
 `POST /api/Kategori`
 
-Auth: `SATICI`
+Auth: `ADMIN`
 
 Body:
 
@@ -752,7 +951,7 @@ Response:
 
 `PUT /api/Kategori/{id}`
 
-Auth: `SATICI`
+Auth: `ADMIN`
 
 Body:
 
@@ -767,7 +966,7 @@ Body:
 
 `DELETE /api/Kategori/{id}`
 
-Auth: `SATICI`
+Auth: `ADMIN`
 
 UI notu:
 
@@ -788,6 +987,7 @@ UI notu:
   "fiyat": 420,
   "stokMiktari": 12,
   "kategoriId": 5,
+  "kategoriAdi": "Bal",
   "saticiId": "seller-user-id",
   "saticiMagazaAdi": "Posof Organik",
   "saticiSehir": "Ardahan",
@@ -1635,6 +1835,397 @@ Production ortamında beklenmeyen `500` detayları gizlenir; UI `message` ve `tr
 
 ## 17. Endpoint Özet Tablosu
 
+### App
+
+| Method | Endpoint | Auth | Rol | Aciklama |
+| --- | --- | --- | --- | --- |
+| `GET` | `/api/App/bootstrap` | Hayir | - | UI baslangic sozlesmesi, kategori, feature flag, upload limitleri |
+
+## Complete Project Logic Guide
+
+Bu bolum projenin nasil dusunuldugunu anlatir. Frontend, mobil, test ve deployment ekipleri bu bolumu "urun mantigi" sozlesmesi olarak okuyabilir.
+
+### Product Scope
+
+Yoremio bir organik/yerel urun pazar yeri API'sidir. Platformun temel amaci alici ile yerel saticiyi bulusturmak, urun kesfi yapmak, talep/teklif uzerinden anlasma kaydi tutmak ve canli mesajlasma saglamaktir.
+
+Kapsam icinde olanlar:
+
+- Kullanici kaydi, login ve JWT tabanli oturum.
+- Alici, satici ve admin rolleri.
+- Satici profil dogrulama ve guven skoru.
+- Kategori ve urun yonetimi.
+- Urun medya yukleme/silme.
+- Urun listeleme, arama, filtreleme, siralama ve oneriler.
+- Favori, talep, teklif, yorum, puan.
+- REST + SignalR tabanli chat.
+- Development icin mock email/SMS dogrulama kutusu.
+
+Kapsam disinda olanlar:
+
+- Odeme alma.
+- Kargo/siparis takibi.
+- Fatura/e-arsiv.
+- Stok rezervasyonu.
+- Iade/iptal sureci.
+- Tam admin paneli ve moderasyon workflow'u. Sadece `ADMIN` rolu ve kategori yonetimi vardir.
+
+### Architecture
+
+Solution katmanlari:
+
+| Katman | Klasor | Sorumluluk |
+| --- | --- | --- |
+| API | `API/` | Controller, middleware, auth pipeline, CORS, rate limit, health, SignalR map. |
+| Application | `Application/` | DTO, servis arayuzleri, validation attribute'lari. |
+| Domain | `Domain/` | Entity, role/durum sabitleri, repository arayuzleri, query modelleri. |
+| Infrastructure | `Infrastructure/` | EF Core context, repository implementasyonlari, servis implementasyonlari, email/SMS/dosya/chat altyapisi. |
+| Tests | `Tests/` | Console test runner ve chat e2e runner. |
+
+Backend request akisi:
+
+1. Request API controller veya SignalR hub'a gelir.
+2. Auth gerekiyorsa JWT middleware token'i dogrular.
+3. Controller kullanici id/rol bilgisini claim'lerden alir.
+4. Application interface uzerinden Infrastructure service cagrilir.
+5. Service is kuralini uygular.
+6. Repository EF Core ile PostgreSQL verisine erisir.
+7. Controller `ApiResponse<T>` envelope ile cevap doner.
+
+### Core Domain Model
+
+| Entity | Mantik |
+| --- | --- |
+| `ApplicationUser` | Identity kullanicisi. Email, phone, confirmed flag'leri ve roller burada yonetilir. |
+| `SaticiProfili` | Saticinin magazasi, vergi no, adres, sehir/ilce, aktiflik ve kayit tarihi. |
+| `AliciProfili` | Alicinin adres/favori kategori gibi temel profil bilgileri. |
+| `Kategori` | Urun taksonomisi. Yazma yetkisi `ADMIN`. |
+| `Urun` | Saticiya ait urun. Kategori, fiyat, stok, aktiflik, medya, puan, yorum ve favorilerle iliskilidir. |
+| `UrunResim` / `UrunVideo` | Urun medya URL kayitlari. Local static veya Cloudinary absolute URL olabilir. |
+| `UrunFavori` | Alici kullanicinin favori urun iliskisi. Kullanici-urun unique tutulur. |
+| `Talep` | Alicinin bir urun icin actigi talep. `ACIK`, `ANLASILDI`, `IPTAL`. |
+| `TalepTeklif` | Saticinin talebe verdigi teklif. `BEKLEMEDE`, `KABUL`, `RED`. |
+| `Yorum` | Alicinin urune yorumu. Production kuralinda sadece anlasilmis talep sonrasi eklenebilir. |
+| `Puan` | Alicinin urune 1-5 puani. Kullanici-urun unique; production kuralinda sadece anlasilmis talep sonrasi eklenebilir. |
+| `ChatMessage` | Iki kullanici arasindaki kalici mesaj. `ReadAt` okundu bilgisini tasir. |
+
+Onemli iliskiler:
+
+- Bir `ApplicationUser` en fazla bir `SaticiProfili` ve bir `AliciProfili` tasir.
+- Satici kaydinda kullanici hem `SATICI` hem `ALICI` rolu alabilir.
+- Bir `Urun`, bir `SaticiProfili` ve bir `Kategori` ile iliskilidir.
+- Bir `Talep`, alici ve urun uzerinden saticiya baglanir.
+- Bir `TalepTeklif`, talep ve satici arasinda unique kabul edilir.
+- Bir `Puan`, ayni kullanici ve urun icin tek kayittir; tekrar puanlama guncelleme mantigiyla calisir.
+
+### Roles And Permissions
+
+| Rol | Yapabilir | Yapamaz / Not |
+| --- | --- | --- |
+| Anonymous | Public kategori, urun, yorum/puan listesi, guven skoru gorebilir. | Favori, talep, chat, yorum, puan, urun/profil yonetimi yapamaz. |
+| `ALICI` | Favori, onerilenler, talep, teklif kabul, chat, anlasilmis alim sonrasi yorum/puan. | Urun ekleyemez, satici profili yonetemez, kategori yazamaz. |
+| `SATICI` | Profil, urun, medya, gelen talep, teklif, chat. | Kategori yazamaz. |
+| `ADMIN` | Kategori olusturma/guncelleme/silme. | Urun sahipligi veya satici yerine islem yapma endpointi yoktur. |
+
+Frontend kurali:
+
+- Yetki kontrolunde `roles` listesini esas alin.
+- `role` alani sadece geriye uyumluluk icindir.
+- Bir kullanicida birden fazla rol olabilir.
+
+### Authentication And Verification Lifecycle
+
+Satici kaydi:
+
+1. UI `POST /api/Auth/register/satici` cagirir.
+2. Identity kullanicisi olusturulur.
+3. `SaticiProfili` olusturulur ve `AktifMi=false` baslar.
+4. Kullaniciya `SATICI` ve `ALICI` rolleri verilir.
+5. Email dogrulama token'i ve telefon dogrulama kodu/linki uretilir.
+6. Mock sender aciksa mesajlar `/dev/verification` kutusuna duser.
+7. Email ve telefon dogrulaninca satici profili aktif olur.
+
+Alici kaydi:
+
+1. UI `POST /api/Auth/register/alici` cagirir.
+2. Identity kullanicisi olusturulur.
+3. `ALICI` rolu atanir.
+4. Alici hemen login olabilir.
+
+Login:
+
+1. UI `POST /api/Auth/login` cagirir.
+2. Email/password kontrol edilir.
+3. Kullanici `SATICI` ise email dogrulama zorunludur.
+4. `Verification:RequireConfirmedPhoneForSellerLogin=true` ise satici telefon dogrulamasi da zorunludur.
+5. JWT icine user id, email, username ve tum roller yazilir.
+
+Yeniden dogrulama:
+
+- `POST /api/Auth/resend-verification` email alir.
+- Kullanici yoksa veya satici degilse yine basarili cevap doner.
+- Eksik dogrulamalar icin yeniden email/SMS uretilir.
+- Bu davranis hesap varligini disari sizdirmemek icindir.
+
+### App Bootstrap Lifecycle
+
+UI acilisinda onerilen sira:
+
+1. `GET /api/App/bootstrap`
+2. Token varsa `GET /api/Auth/me`
+3. Public ana sayfa icin `GET /api/Urun`
+4. Login kullanici aliciysa favori/onerilen/talep/chat verileri.
+5. Login kullanici saticiysa profil/urunlerim/gelen talepler/chat verileri.
+
+Bootstrap UI'a sunlari verir:
+
+- Rollerin listesi.
+- Kategoriler.
+- Urun siralama secenekleri.
+- Feature flag'ler.
+- Dogrulama ayarlari.
+- Upload limitleri.
+
+### Product And Media Lifecycle
+
+Urun ekleme:
+
+1. `SATICI` `POST /api/Urun/urun-ekle` multipart/form-data gonderir.
+2. Kategori varligi kontrol edilir.
+3. Urun kaydi olusturulur.
+4. Resim/video dosyalari kaydedilir.
+5. Medya URL'leri `UrunResim` / `UrunVideo` olarak eklenir.
+
+Urun guncelleme:
+
+- Sadece urun sahibi satici guncelleyebilir.
+- `PUT /api/Urun/{urunId}` ile gonderilen yeni medya mevcut medyaya eklenir.
+- Eski medyayi kaldirmak icin delete medya endpointleri kullanilir.
+
+Medya storage:
+
+- Local storage aktifse dosya `wwwroot` altina guvenli path kontroluyle yazilir.
+- Cloudinary aktifse yeni uploadlar Cloudinary URL'i olarak kaydedilir.
+- UI relative URL'leri API base URL ile birlestirmelidir.
+
+Upload guvenligi:
+
+- Resim: content type `image/`, izinli uzanti ve dosya imzasi gerekir.
+- Video: content type `video/`, izinli uzanti ve dosya imzasi gerekir.
+- Maksimum multipart boyutu `100 MB`.
+
+### Discovery, Search And Recommendation Logic
+
+`GET /api/Urun` public urun kesif endpointidir.
+
+Filtreler:
+
+- Metin: `q`
+- Kategori: `kategoriId`
+- Fiyat: `minFiyat`, `maxFiyat`
+- Satici: `saticiId`
+- Lokasyon: `sehir`, `ilce`
+- Stok: `sadeceStoktaOlanlar`
+- Puan: `minOrtalamaPuan`
+- Aktiflik: `sadeceAktif`
+
+Siralama:
+
+- `newest`, `oldest`
+- `price_asc`, `price_desc`
+- `name_asc`, `name_desc`
+- `top_rated`
+- `most_reviewed`
+- `most_favorited`
+
+Onerilen urunler:
+
+- `GET /api/Urun/onerilen`
+- Alicinin favori kategorileri dikkate alinir.
+- Zaten favorilenen urunler oneriden dislanir.
+- Eksik kalirsa genel populer/puanli urunlerle tamamlanir.
+
+### Demand And Offer Lifecycle
+
+Talep akisi platformun siparis yerine kullandigi anlasma kaydidir.
+
+1. Alici urun detayindan `POST /api/Talep` ile talep acar.
+2. Talep `ACIK` baslar.
+3. Satici sadece kendi urunlerine gelen talepleri `GET /api/Talep/satici` ile gorur.
+4. Satici `POST /api/Talep/{talepId}/teklif` ile teklif verir veya mevcut teklifini gunceller.
+5. Alici `POST /api/Talep/teklif/{teklifId}/kabul` ile teklifi kabul eder.
+6. Talep `ANLASILDI` olur.
+7. Kabul edilen teklif `KABUL`, diger teklifler `RED` olur.
+
+Onemli:
+
+- Bu akis odeme veya kargo baslatmaz.
+- UI metinlerinde "siparis tamamlandi" yerine "anlasildi" kullanin.
+- Yorum/puan icin bu anlasma kaydi gerekir.
+
+### Reviews, Ratings And Trust Logic
+
+Yorum/puan kurali:
+
+- Kullanici `ALICI` rolunde olmalidir.
+- Ilgili urun aktif/var olmalidir.
+- Ayni urun icin kullanicinin `ANLASILDI` talebi ve kabul edilmis teklifi olmalidir.
+
+Puan:
+
+- Deger `1-5` araligindadir.
+- Ayni kullanici-urun icin tek puan vardir.
+- Tekrar puanlama mevcut kaydi gunceller.
+
+Guven skoru:
+
+- Public endpoint: `GET /api/Profil/satici/{saticiId}/guven-skoru`
+- Ortalama puan, yorum sayisi, favori sayisi, kayit suresi ve dogrulanmis satici bilgisiyle hesaplanir.
+- UI bunu satici kartinda rozet/progress olarak gosterebilir.
+
+### Chat Logic
+
+Chat iki katmanlidir:
+
+- REST: konusma listesi, mesaj gecmisi, fallback mesaj gonderme, okundu isaretleme.
+- SignalR: canli mesaj, typing, okundu eventleri.
+
+SignalR connection:
+
+- Hub yolu: `/chathub`
+- JWT query string ile `access_token` olarak verilebilir.
+- User id `ClaimTypes.NameIdentifier` uzerinden SignalR user id olur.
+
+Hub methodlari:
+
+- `SendMessage(toUserId, message)`
+- `SendMessageLegacy(fromUserId, toUserId, message)`
+- `MarkConversationRead(otherUserId)`
+- `Typing(toUserId)`
+
+Hub eventleri:
+
+- `Connected(userId)`
+- `ReceiveMessage(fromUserId, message)`
+- `MessageSent(toUserId, message, sentAtUtc)`
+- `ReceiveMessageV2(ChatMessageDto)`
+- `MessageSentV2(ChatMessageDto)`
+- `ConversationRead(otherUserId, markedCount, readAtUtc)`
+- `MessagesRead(readerUserId, readAtUtc)`
+- `Typing(fromUserId)`
+
+Mesaj kurallari:
+
+- Kullanici kendisine mesaj atamaz.
+- Mesaj bos olamaz.
+- Maksimum mesaj uzunlugu `1000`.
+- Alici kullanici var olmalidir.
+
+### Error, Rate Limit And Observability
+
+Global exception mapping:
+
+- `ArgumentException` -> `400`
+- `UnauthorizedAccessException` -> `403`
+- `KeyNotFoundException` -> `404`
+- Beklenmeyen hata -> `500`
+
+HTTP behavior:
+
+- `401`: token yok, gecersiz veya login basarisiz.
+- `403`: token var ama rol/is kuralina yetki yok.
+- `404`: kaynak yok.
+- `429`: global rate limit asildi.
+
+Logging:
+
+- Console logging single-line format kullanir.
+- `X-Correlation-Id` request/response header olarak desteklenir.
+- `traceId` UI destek akisi icin saklanabilir.
+
+### Development Seed And Demo Accounts
+
+Development ortaminda seed aciksa uygulama baslangicinda su veriler olusturulur:
+
+- Roller: `ADMIN`, `SATICI`, `ALICI`
+- Admin: `admin@demo.yoremio.local`
+- Saticilar: `ayse@demo.yoremio.local`, `mehmet@demo.yoremio.local`, `zeynep@demo.yoremio.local`
+- Alicilar: `elif@demo.yoremio.local`, `can@demo.yoremio.local`, `selin@demo.yoremio.local`
+- Kategoriler, urunler, medya, favoriler, puanlar, yorumlar, talepler ve teklifler.
+
+Tum demo kullanicilarin sifresi:
+
+- `Test123!`
+
+### Production Deployment Rules
+
+Production icin zorunlu kurallar:
+
+- `Jwt:Key` environment/secret manager ile verilmeli.
+- `ConnectionStrings:DefaultConnection` gercek PostgreSQL bilgisi olmali.
+- `CHANGE_ME` placeholder kalirsa uygulama acilmaz.
+- `Startup:SeedSampleData=false` olmali.
+- Migration uygulamasi pipeline veya kontrollu startup ayariyla yonetilmeli.
+- Local `wwwroot` uploadlari kalici disk olmayan ortamlarda kullanilmamali; Cloudinary acilmali.
+- SMTP/SMS gercek servis ayarlari secret olarak verilmeli.
+- CORS sadece gercek frontend originlerini icermeli.
+
+### Frontend Screen Contract
+
+Minimum ekranlar:
+
+- Public home: kategori, urun liste, filtre, pagination.
+- Urun detay: medya galeri, satici karti, guven skoru, puan/yorum, favori, talep, chat.
+- Auth: login, alici kayit, satici kayit, dogrulama bekleme, dogrulama sonuc.
+- Alici paneli: favoriler, onerilenler, taleplerim, chat.
+- Satici paneli: profil, urunlerim, urun formu, medya yonetimi, gelen talepler, teklif formu, chat.
+- Admin paneli: kategori liste, kategori ekle/guncelle/sil.
+- Development ekran: mock dogrulama kutusu.
+
+UI state kurallari:
+
+- Token varsa acilista `GET /api/Auth/me` ile dogrula.
+- Yetki icin `roles` kullan.
+- Upload limitleri icin bootstrap `uploads` alanini kullan.
+- Feature flag kapaliysa aksiyonu gizle.
+- `traceId` hata destek ekraninda gosterilebilir.
+
+## Production Hardening Notes
+
+Bu bolum UI ve deployment tarafinin yeni production kurallarini tek yerden gormesi icindir.
+
+### Roles
+
+- `ADMIN`: kategori olusturma/guncelleme/silme gibi sistemsel yonetim isleri.
+- `SATICI`: profil, urun, talep/teklif, chat.
+- `ALICI`: kesif, favori, talep, chat, dogrulanmis alim sonrasi yorum/puan.
+- Kategori yazma endpointleri artik `ADMIN` ister; satici panelinde kategori CRUD gizlenmelidir.
+
+### Verified Reviews And Ratings
+
+- `POST /api/Yorum` ve `POST /api/Puan/puan-ekle` icin kullanicinin ilgili urunde `ANLASILDI` durumunda talebi ve kabul edilmis teklifi olmalidir.
+- Bu kural sahte yorum/puan riskini azaltir.
+- UI, henuz anlasilmis talebi olmayan kullanicida yorum/puan formunu pasif gostermelidir.
+
+### Upload Security
+
+- Resim yuklemeleri sadece `image/` content type, izinli uzanti ve dosya imzasi eslesirse kabul edilir.
+- Izinli resim uzantilari: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`.
+- Video yuklemeleri sadece `video/` content type, izinli uzanti ve dosya imzasi eslesirse kabul edilir.
+- Izinli video uzantilari: `.mp4`, `.webm`, `.mov`.
+- UI, `GET /api/App/bootstrap` icindeki `uploads` limitlerini form validasyonunda kullanmalidir.
+
+### Secrets And Config
+
+- `API/appsettings.json` artik gercek secret tasimaz; `CHANGE_ME` placeholder kullanir.
+- Production ortaminda `Jwt:Key` veya `ConnectionStrings:DefaultConnection` placeholder kalirsa uygulama acilista hata verir.
+- Gercek secretlar environment variable, user-secrets veya deployment secret manager ile verilmelidir.
+
+### CI
+
+- `.github/workflows/ci.yml` restore, release build ve test runner adimlarini calistirir.
+- Pull request kapisinda build/test kirmadan merge edilmemelidir.
+
 ### Auth
 
 | Method | Endpoint | Auth | Rol | Açıklama |
@@ -1645,6 +2236,20 @@ Production ortamında beklenmeyen `500` detayları gizlenir; UI `message` ve `tr
 | `GET` | `/api/Auth/me` | Evet | Any | Aktif kullanıcı |
 | `GET` | `/api/Auth/confirm-email` | Hayır | - | Email doğrulama |
 | `GET` | `/api/Auth/confirm-phone` | Hayır | - | Telefon doğrulama |
+
+Auth ek endpoint:
+
+| Method | Endpoint | Auth | Rol | Aciklama |
+| --- | --- | --- | --- | --- |
+| `POST` | `/api/Auth/resend-verification` | Hayir | - | Satici email/SMS dogrulama mesajini yeniden gonder |
+
+### Development Verification
+
+| Method | Endpoint | Auth | Rol | Aciklama |
+| --- | --- | --- | --- | --- |
+| `GET` | `/dev/verification` | Hayir | - | Development mock email/SMS kutusu HTML arayuzu |
+| `GET` | `/dev/verification/messages` | Hayir | - | Mock dogrulama mesajlari JSON listesi |
+| `DELETE` | `/dev/verification/messages` | Hayir | - | Mock dogrulama kutusunu temizle |
 
 ### Profil
 
@@ -1660,9 +2265,9 @@ Production ortamında beklenmeyen `500` detayları gizlenir; UI `message` ve `tr
 | --- | --- | --- | --- | --- |
 | `GET` | `/api/Kategori` | Hayır | - | Kategori listesi |
 | `GET` | `/api/Kategori/{id}` | Hayır | - | Kategori detay |
-| `POST` | `/api/Kategori` | Evet | `SATICI` | Kategori oluştur |
-| `PUT` | `/api/Kategori/{id}` | Evet | `SATICI` | Kategori güncelle |
-| `DELETE` | `/api/Kategori/{id}` | Evet | `SATICI` | Kategori sil |
+| `POST` | `/api/Kategori` | Evet | `ADMIN` | Kategori oluştur |
+| `PUT` | `/api/Kategori/{id}` | Evet | `ADMIN` | Kategori güncelle |
+| `DELETE` | `/api/Kategori/{id}` | Evet | `ADMIN` | Kategori sil |
 
 ### Ürün
 

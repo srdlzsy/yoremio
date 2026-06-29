@@ -8,11 +8,13 @@ namespace Infrastructure.Services
     {
         private readonly IPuanRepository _puanRepository;
         private readonly IUrunRepository _urunRepository;
+        private readonly ITalepRepository _talepRepository;
 
-        public PuanService(IPuanRepository puanRepository, IUrunRepository urunRepository)
+        public PuanService(IPuanRepository puanRepository, IUrunRepository urunRepository, ITalepRepository talepRepository)
         {
             _puanRepository = puanRepository;
             _urunRepository = urunRepository;
+            _talepRepository = talepRepository;
         }
 
 
@@ -22,6 +24,11 @@ namespace Infrastructure.Services
             if (urun == null || !urun.AktifMi)
             {
                 throw new KeyNotFoundException("Ürün bulunamadı.");
+            }
+
+            if (!await _talepRepository.HasAcceptedDemandForProductAsync(kullaniciId, urunId))
+            {
+                throw new UnauthorizedAccessException("Puan verebilmek icin bu urunle ilgili kabul edilmis bir talebiniz olmalidir.");
             }
 
             return await _puanRepository.GetOrCreatePuanAsync(urunId, kullaniciId, puanDegeri);

@@ -11,11 +11,16 @@ namespace Infrastructure.Services
     {
         private readonly SmtpEmailOptions _options;
         private readonly ILogger<EmailSender> _logger;
+        private readonly IVerificationOutbox _verificationOutbox;
 
-        public EmailSender(IOptions<SmtpEmailOptions> options, ILogger<EmailSender> logger)
+        public EmailSender(
+            IOptions<SmtpEmailOptions> options,
+            ILogger<EmailSender> logger,
+            IVerificationOutbox verificationOutbox)
         {
             _options = options.Value;
             _logger = logger;
+            _verificationOutbox = verificationOutbox;
         }
 
         public async Task SendEmailAsync(string to, string subject, string htmlMessage)
@@ -32,6 +37,7 @@ namespace Infrastructure.Services
                     to,
                     subject,
                     htmlMessage);
+                _verificationOutbox.Add("email", to, subject, htmlMessage);
 
                 await Task.CompletedTask;
                 return;

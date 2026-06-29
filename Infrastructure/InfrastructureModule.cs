@@ -57,6 +57,7 @@ namespace Infrastructure
             services.Configure<TwilioSmsOptions>(configuration.GetSection("Sms:Twilio"));
             services.Configure<VerificationOptions>(configuration.GetSection("Verification"));
             services.Configure<CloudinaryOptions>(configuration.GetSection("Cloudinary"));
+            services.AddSingleton<IVerificationOutbox, InMemoryVerificationOutbox>();
             // Generic Repository & Service (her Entity için)
             services.AddScoped(typeof(IBaseRepository<>), typeof(BaseRepository<>));
             services.AddScoped(typeof(IBaseService<>), typeof(BaseService<>));

@@ -72,7 +72,21 @@ builder.Services.AddOptions<JwtOptions>()
         options => builder.Environment.IsDevelopment() ||
                    !options.Key.Contains("super-secret", StringComparison.OrdinalIgnoreCase),
         "Production ortaminda Jwt:Key appsettings icindeki varsayilan deger olamaz.")
+    .Validate(
+        options => builder.Environment.IsDevelopment() ||
+                   !options.Key.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase),
+        "Production ortaminda Jwt:Key placeholder deger olamaz.")
     .ValidateOnStart();
+
+if (!builder.Environment.IsDevelopment())
+{
+    var defaultConnection = configuration.GetConnectionString("DefaultConnection");
+    if (string.IsNullOrWhiteSpace(defaultConnection) ||
+        defaultConnection.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException("Production ortaminda ConnectionStrings:DefaultConnection gercek secret/config ile verilmelidir.");
+    }
+}
 
 builder.Services.AddInfrastructure(configuration);
 builder.Services.AddApplicationModule(configuration);
@@ -84,6 +98,7 @@ builder.Services.AddControllers();
 
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy("AdminPolicy", policy => policy.RequireRole(ApplicationRoles.Admin));
     options.AddPolicy("SaticiPolicy", policy => policy.RequireRole(ApplicationRoles.Satici));
     options.AddPolicy("AliciPolicy", policy => policy.RequireRole(ApplicationRoles.Alici));
 });

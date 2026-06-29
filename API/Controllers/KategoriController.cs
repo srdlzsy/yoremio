@@ -36,7 +36,7 @@ namespace API.Controllers
             return Ok(ApiResponse<KategoriDto>.Ok(kategori, "Kategori getirildi.", HttpContext.TraceIdentifier));
         }
 
-        [Authorize(Roles = ApplicationRoles.Satici)]
+        [Authorize(Roles = ApplicationRoles.Admin)]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] KategoriCreateDto dto)
         {
@@ -45,7 +45,7 @@ namespace API.Controllers
                 ApiResponse<KategoriDto>.Ok(kategori, "Kategori oluşturuldu.", HttpContext.TraceIdentifier));
         }
 
-        [Authorize(Roles = ApplicationRoles.Satici)]
+        [Authorize(Roles = ApplicationRoles.Admin)]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] KategoriUpdateDto dto)
         {
@@ -58,7 +58,7 @@ namespace API.Controllers
             return Ok(ApiResponse<KategoriDto>.Ok(kategori, "Kategori güncellendi.", HttpContext.TraceIdentifier));
         }
 
-        [Authorize(Roles = ApplicationRoles.Satici)]
+        [Authorize(Roles = ApplicationRoles.Admin)]
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
