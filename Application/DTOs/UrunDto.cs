@@ -7,6 +7,7 @@ namespace Application.DTOs
         public string Aciklama { get; set; } = string.Empty;
         public decimal Fiyat { get; set; }
         public int StokMiktari { get; set; }
+        public bool AktifMi { get; set; }
         public int KategoriId { get; set; }
         public string? KategoriAdi { get; set; }
         public string SaticiId { get; set; } = string.Empty;

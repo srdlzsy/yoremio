@@ -149,6 +149,25 @@ namespace API.Controllers
         }
 
         [Authorize(Roles = ApplicationRoles.Satici)]
+        [HttpPatch("{urunId:int}/status")]
+        public async Task<IActionResult> UrunDurumuGuncelle(int urunId, [FromBody] UrunDurumGuncelleDto dto)
+        {
+            var saticiId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(saticiId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanici dogrulanamadi.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            if (!dto.AktifMi.HasValue)
+            {
+                return BadRequest(ApiResponse<object>.Fail("AktifMi alani zorunludur.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var updatedUrun = await _urunService.UrunDurumuGuncelleAsync(urunId, saticiId, dto.AktifMi.Value);
+            return Ok(ApiResponse<UrunDto>.Ok(updatedUrun, "Urun durumu guncellendi.", HttpContext.TraceIdentifier));
+        }
+
+        [Authorize(Roles = ApplicationRoles.Satici)]
         [HttpDelete("{urunId}")]
         public async Task<IActionResult> UrunSil(int urunId)
         {

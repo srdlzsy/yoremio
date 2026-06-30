@@ -83,6 +83,7 @@ namespace Infrastructure
             services.AddHttpClient<ISmsSender, SmsSender>();
             services.AddScoped<IUrunService, UrunService>();
             services.AddScoped<ITalepService, TalepService>();
+            services.AddScoped<IDashboardService, DashboardService>();
             services.AddScoped<IDosyaKaydetService>(provider =>
             {
                 var cloudinaryOptions = provider.GetRequiredService<IOptions<CloudinaryOptions>>().Value;

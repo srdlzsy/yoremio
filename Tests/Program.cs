@@ -28,6 +28,7 @@ var tests = new (string Name, Action Test)[]
     ("Yorum yazma endpointleri alıcı rolü istemeli", YorumController_WriteEndpoints_Should_RequireBuyerRole),
     ("Puan ekleme endpointi alıcı rolü istemeli", PuanController_PuanEkle_Should_RequireBuyerRole),
     ("Profil endpointi satıcı rolü istemeli", ProfilController_Should_RequireSellerRole),
+    ("Dashboard endpointleri beklenen rolleri istemeli", DashboardController_Should_RequireExpectedRoles),
     ("Kategori yazma endpointleri admin rolü istemeli", KategoriController_WriteEndpoints_Should_RequireAdminRole),
     ("ChatHub iki parametreli güvenli SendMessage metodu sunmalı", ChatHub_Should_ExposeSecureSendMethod),
     ("ChatHub okundu bilgisini desteklemeli", ChatHub_Should_ExposeReadReceiptMethod),
@@ -140,6 +141,7 @@ static void UrunController_WriteEndpoints_Should_RequireSellerRole()
     AssertMethodRole(typeof(UrunController), nameof(UrunController.UrunEkle), ApplicationRoles.Satici);
     AssertMethodRole(typeof(UrunController), nameof(UrunController.GetMyProducts), ApplicationRoles.Satici);
     AssertMethodRole(typeof(UrunController), nameof(UrunController.UrunGuncelle), ApplicationRoles.Satici);
+    AssertMethodRole(typeof(UrunController), nameof(UrunController.UrunDurumuGuncelle), ApplicationRoles.Satici);
     AssertMethodRole(typeof(UrunController), nameof(UrunController.UrunSil), ApplicationRoles.Satici);
     AssertMethodRole(typeof(UrunController), nameof(UrunController.UrunResimSil), ApplicationRoles.Satici);
     AssertMethodRole(typeof(UrunController), nameof(UrunController.UrunVideoSil), ApplicationRoles.Satici);
@@ -188,6 +190,17 @@ static void KategoriController_WriteEndpoints_Should_RequireAdminRole()
     AssertMethodRole(typeof(KategoriController), nameof(KategoriController.Create), ApplicationRoles.Admin);
     AssertMethodRole(typeof(KategoriController), nameof(KategoriController.Update), ApplicationRoles.Admin);
     AssertMethodRole(typeof(KategoriController), nameof(KategoriController.Delete), ApplicationRoles.Admin);
+}
+
+static void DashboardController_Should_RequireExpectedRoles()
+{
+    var authorize = typeof(DashboardController).GetCustomAttribute<AuthorizeAttribute>();
+    if (authorize == null)
+        throw new InvalidOperationException("DashboardController uzerinde Authorize attribute bulunamadi.");
+
+    AssertHttpMethod(typeof(DashboardController), nameof(DashboardController.GetSummary), typeof(HttpGetAttribute));
+    AssertMethodRole(typeof(DashboardController), nameof(DashboardController.GetSaticiDashboard), ApplicationRoles.Satici);
+    AssertMethodRole(typeof(DashboardController), nameof(DashboardController.GetAdminDashboard), ApplicationRoles.Admin);
 }
 
 static void TalepController_Endpoints_Should_RequireExpectedRoles()

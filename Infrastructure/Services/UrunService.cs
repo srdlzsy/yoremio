@@ -174,6 +174,22 @@ namespace Infrastructure.Services
             return await _urunRepository.SaveChangesAsync();
         }
 
+        public async Task<UrunDto> UrunDurumuGuncelleAsync(int urunId, string saticiId, bool aktifMi)
+        {
+            var urun = await _urunRepository.GetByIdAsync(urunId);
+            if (urun == null)
+                throw new Exception("Urun bulunamadi.");
+
+            if (!string.Equals(urun.SaticiId, saticiId, StringComparison.Ordinal))
+                throw new UnauthorizedAccessException("Bu urun uzerinde islem yetkiniz yok.");
+
+            urun.AktifMi = aktifMi;
+            urun.GuncellemeTarihi = DateTime.UtcNow;
+
+            await _urunRepository.SaveChangesAsync();
+            return MapToDto(urun);
+        }
+
         public async Task<bool> UrunResimSilAsync(int urunId, int resimId, string saticiId)
         {
             var urun = await _urunRepository.GetByIdAsync(urunId);
@@ -242,6 +258,7 @@ namespace Infrastructure.Services
                 Aciklama = urun.Aciklama,
                 Fiyat = urun.Fiyat,
                 StokMiktari = urun.StokMiktari,
+                AktifMi = urun.AktifMi,
                 KategoriId = urun.KategoriId,
                 KategoriAdi = urun.Kategori?.Adi,
                 SaticiId = urun.SaticiId,
