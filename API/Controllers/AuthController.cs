@@ -1,9 +1,11 @@
 using Application.DTOs;
 using Application.Interfaces;
 using Domain.Entities;
+using Infrastructure.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -17,17 +19,20 @@ namespace API.Controllers
         private readonly IAuthService _authService;
         private readonly ISaticiProfiliService _saticiProfiliService;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly VerificationOptions _verificationOptions;
         private readonly ILogger<AuthController> _logger;
 
         public AuthController(
             IAuthService authService,
             ISaticiProfiliService saticiProfiliService,
             UserManager<ApplicationUser> userManager,
+            IOptions<VerificationOptions> verificationOptions,
             ILogger<AuthController> logger)
         {
             _authService = authService;
             _saticiProfiliService = saticiProfiliService;
             _userManager = userManager;
+            _verificationOptions = verificationOptions.Value;
             _logger = logger;
         }
 
@@ -98,6 +103,34 @@ namespace API.Controllers
                 null,
                 "Dogrulama mesaji varsa yeniden gonderildi.",
                 HttpContext.TraceIdentifier));
+        }
+
+        [AllowAnonymous]
+        [HttpPost("confirm-email")]
+        public async Task<IActionResult> ConfirmEmailCode([FromBody] ConfirmEmailDto dto)
+        {
+            var result = await _authService.ConfirmEmailCodeAsync(dto.Email, dto.Code);
+            if (!result.Succeeded || string.IsNullOrWhiteSpace(result.UserId))
+            {
+                return BadRequest(ApiResponse<object>.Fail("Email dogrulama basarisiz.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            await TryActivateVerifiedSellerAsync(result.UserId);
+            return Ok(ApiResponse<object>.Ok(null, "Email basariyla dogrulandi.", HttpContext.TraceIdentifier));
+        }
+
+        [AllowAnonymous]
+        [HttpPost("confirm-phone")]
+        public async Task<IActionResult> ConfirmPhoneCode([FromBody] ConfirmPhoneDto dto)
+        {
+            var result = await _authService.ConfirmPhoneCodeAsync(dto.Email, dto.Code);
+            if (!result.Succeeded || string.IsNullOrWhiteSpace(result.UserId))
+            {
+                return BadRequest(ApiResponse<object>.Fail("Telefon dogrulama basarisiz.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            await TryActivateVerifiedSellerAsync(result.UserId);
+            return Ok(ApiResponse<object>.Ok(null, "Telefon basariyla dogrulandi.", HttpContext.TraceIdentifier));
         }
 
         [Authorize]
@@ -187,7 +220,10 @@ namespace API.Controllers
                 return;
             }
 
-            if (!satici.Kullanici.EmailConfirmed || !satici.Kullanici.PhoneNumberConfirmed)
+            var emailOk = !_verificationOptions.RequireConfirmedEmailForSellerLogin || satici.Kullanici.EmailConfirmed;
+            var phoneOk = !_verificationOptions.RequireConfirmedPhoneForSellerLogin || satici.Kullanici.PhoneNumberConfirmed;
+
+            if (!emailOk || !phoneOk)
             {
                 return;
             }

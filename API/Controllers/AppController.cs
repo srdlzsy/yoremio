@@ -60,6 +60,7 @@ namespace API.Controllers
                 },
                 Verification = new AppVerificationConfigDto
                 {
+                    RequireConfirmedEmailForSellerLogin = _verificationOptions.RequireConfirmedEmailForSellerLogin,
                     RequireConfirmedPhoneForSellerLogin = _verificationOptions.RequireConfirmedPhoneForSellerLogin,
                     DevVerificationInboxUrl = devVerificationEnabled ? "/dev/verification" : null
                 }

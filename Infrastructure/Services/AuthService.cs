@@ -39,13 +39,16 @@ namespace Infrastructure.Services
 
         public async Task<(bool Succeeded, string? Error)> RegisterSaticiAsync(RegisterSaticiDto dto)
         {
+            var requireEmailConfirmation = _verificationOptions.RequireConfirmedEmailForSellerLogin;
+            var requirePhoneConfirmation = _verificationOptions.RequireConfirmedPhoneForSellerLogin;
+
             var user = new ApplicationUser
             {
                 UserName = dto.Email,
                 Email = dto.Email,
                 PhoneNumber = dto.PhoneNumber,
-                EmailConfirmed = false,
-                PhoneNumberConfirmed = false,
+                EmailConfirmed = !requireEmailConfirmation,
+                PhoneNumberConfirmed = !requirePhoneConfirmation,
                 SaticiProfili = new SaticiProfili
                 {
                     MagazaAdi = dto.MagazaAdi,
@@ -53,7 +56,7 @@ namespace Infrastructure.Services
                     Adres = dto.Adres,
                     Sehir = dto.Sehir,
                     Ilce = dto.Ilce,
-                    AktifMi = false
+                    AktifMi = !requireEmailConfirmation && !requirePhoneConfirmation
                 },
                 AliciProfili = new AliciProfili
                 {
@@ -62,7 +65,6 @@ namespace Infrastructure.Services
             };
 
             var result = await _userManager.CreateAsync(user, dto.Password);
-
             if (!result.Succeeded)
             {
                 return (false, string.Join(" | ", result.Errors.Select(e => e.Description)));
@@ -75,35 +77,22 @@ namespace Infrastructure.Services
                 return (false, string.Join(" | ", roleResult.Errors.Select(e => e.Description)));
             }
 
-            var emailToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-            var encodedEmailToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(emailToken));
-            var emailConfirmationLink = BuildEmailConfirmationLink(user.Id, encodedEmailToken);
-
             try
             {
-                await _emailSender.SendEmailAsync(
-                    user.Email!,
-                    "E-Posta Doğrulama",
-                    $"Lütfen e-posta adresinizi doğrulamak için <a href='{emailConfirmationLink}'>buraya tıklayın</a>");
+                if (requireEmailConfirmation)
+                {
+                    await SendEmailConfirmationAsync(user);
+                }
+
+                if (requirePhoneConfirmation)
+                {
+                    await SendPhoneConfirmationAsync(user);
+                }
             }
             catch (Exception ex)
             {
                 await _userManager.DeleteAsync(user);
-                return (false, "E-posta gönderilemedi: " + ex.Message);
-            }
-
-            try
-            {
-                var smsCode = await _userManager.GenerateChangePhoneNumberTokenAsync(user, user.PhoneNumber!);
-                var phoneConfirmationLink = BuildPhoneConfirmationLink(user.Id, smsCode);
-                await _smsSender.SendSmsAsync(
-                    user.PhoneNumber!,
-                    $"Yoremio telefon doğrulama kodunuz: {smsCode}. Doğrulama bağlantısı: {phoneConfirmationLink}");
-            }
-            catch (Exception ex)
-            {
-                await _userManager.DeleteAsync(user);
-                return (false, "SMS gönderilemedi: " + ex.Message);
+                return (false, "Dogrulama mesaji gonderilemedi: " + ex.Message);
             }
 
             return (true, null);
@@ -118,7 +107,6 @@ namespace Infrastructure.Services
             };
 
             var result = await _userManager.CreateAsync(user, dto.Password);
-
             if (!result.Succeeded)
             {
                 return (false, string.Join(" | ", result.Errors.Select(e => e.Description)));
@@ -139,26 +127,27 @@ namespace Infrastructure.Services
             var user = await _userManager.FindByEmailAsync(dto.Email);
             if (user == null || !await _userManager.CheckPasswordAsync(user, dto.Password))
             {
-                return (false, null, "Geçersiz email veya şifre.");
+                return (false, null, "Gecersiz email veya sifre.");
             }
 
             var userRoles = await _userManager.GetRolesAsync(user);
             if (userRoles.Count == 0)
             {
-                return (false, null, "Kullanıcı rolü bulunamadı.");
+                return (false, null, "Kullanici rolu bulunamadi.");
             }
 
             if (userRoles.Contains(ApplicationRoles.Satici) &&
+                _verificationOptions.RequireConfirmedEmailForSellerLogin &&
                 !await _userManager.IsEmailConfirmedAsync(user))
             {
-                return (false, null, "Email doğrulanmamış.");
+                return (false, null, "Email dogrulanmamis.");
             }
 
             if (userRoles.Contains(ApplicationRoles.Satici) &&
                 _verificationOptions.RequireConfirmedPhoneForSellerLogin &&
                 !await _userManager.IsPhoneNumberConfirmedAsync(user))
             {
-                return (false, null, "Telefon doğrulanmamış.");
+                return (false, null, "Telefon dogrulanmamis.");
             }
 
             var token = user.JwtGenerateToken(_configuration, userRoles);
@@ -187,12 +176,14 @@ namespace Infrastructure.Services
 
             try
             {
-                if (!await _userManager.IsEmailConfirmedAsync(user))
+                if (_verificationOptions.RequireConfirmedEmailForSellerLogin &&
+                    !await _userManager.IsEmailConfirmedAsync(user))
                 {
                     await SendEmailConfirmationAsync(user);
                 }
 
-                if (!await _userManager.IsPhoneNumberConfirmedAsync(user))
+                if (_verificationOptions.RequireConfirmedPhoneForSellerLogin &&
+                    !await _userManager.IsPhoneNumberConfirmedAsync(user))
                 {
                     await SendPhoneConfirmationAsync(user);
                 }
@@ -238,6 +229,58 @@ namespace Infrastructure.Services
             return result.Succeeded;
         }
 
+        public async Task<(bool Succeeded, string? UserId)> ConfirmEmailCodeAsync(string email, string code)
+        {
+            var user = await _userManager.FindByEmailAsync(email.Trim());
+            if (user == null)
+            {
+                return (false, null);
+            }
+
+            if (await _userManager.IsEmailConfirmedAsync(user))
+            {
+                return (true, user.Id);
+            }
+
+            var isValid = await _userManager.VerifyUserTokenAsync(
+                user,
+                TokenOptions.DefaultEmailProvider,
+                "EmailConfirmationCode",
+                code.Trim());
+
+            if (!isValid)
+            {
+                return (false, user.Id);
+            }
+
+            user.EmailConfirmed = true;
+            var result = await _userManager.UpdateAsync(user);
+            return (result.Succeeded, user.Id);
+        }
+
+        public async Task<(bool Succeeded, string? UserId)> ConfirmPhoneCodeAsync(string email, string code)
+        {
+            var user = await _userManager.FindByEmailAsync(email.Trim());
+            if (user == null || string.IsNullOrWhiteSpace(user.PhoneNumber))
+            {
+                return (false, null);
+            }
+
+            if (await _userManager.IsPhoneNumberConfirmedAsync(user))
+            {
+                return (true, user.Id);
+            }
+
+            var isValid = await _userManager.VerifyChangePhoneNumberTokenAsync(user, code.Trim(), user.PhoneNumber);
+            if (!isValid)
+            {
+                return (false, user.Id);
+            }
+
+            var result = await _userManager.ChangePhoneNumberAsync(user, user.PhoneNumber, code.Trim());
+            return (result.Succeeded, user.Id);
+        }
+
         private async Task SendEmailConfirmationAsync(ApplicationUser user)
         {
             if (string.IsNullOrWhiteSpace(user.Email))
@@ -248,11 +291,13 @@ namespace Infrastructure.Services
             var emailToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
             var encodedEmailToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(emailToken));
             var emailConfirmationLink = BuildEmailConfirmationLink(user.Id, encodedEmailToken);
+            var emailCode = await _userManager.GenerateUserTokenAsync(user, TokenOptions.DefaultEmailProvider, "EmailConfirmationCode");
 
             await _emailSender.SendEmailAsync(
                 user.Email,
-                "E-Posta Dogrulama",
-                $"Yoremio hesabiniz icin email dogrulama linki: <a href='{emailConfirmationLink}'>Email adresimi dogrula</a>");
+                "Yoremio email dogrulama",
+                $"Yoremio email dogrulama kodunuz: <strong>{emailCode}</strong><br />" +
+                $"Isterseniz bu linkten de dogrulayabilirsiniz: <a href='{emailConfirmationLink}'>Email adresimi dogrula</a>");
         }
 
         private async Task SendPhoneConfirmationAsync(ApplicationUser user)
@@ -287,7 +332,7 @@ namespace Infrastructure.Services
             var baseUrl = _verificationOptions.PublicBaseUrl;
             if (string.IsNullOrWhiteSpace(baseUrl))
             {
-                throw new InvalidOperationException("Verification:PublicBaseUrl ayarı boş olamaz.");
+                throw new InvalidOperationException("Verification:PublicBaseUrl ayari bos olamaz.");
             }
 
             return baseUrl.TrimEnd('/');

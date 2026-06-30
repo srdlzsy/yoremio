@@ -15,5 +15,7 @@ namespace Application.Interfaces
         Task<(bool Succeeded, string? Error)> ResendVerificationAsync(ResendVerificationDto dto);
         Task<bool> ConfirmEmailAsync(string userId, string token);
         Task<bool> ConfirmPhoneAsync(string userId, string token);
+        Task<(bool Succeeded, string? UserId)> ConfirmEmailCodeAsync(string email, string code);
+        Task<(bool Succeeded, string? UserId)> ConfirmPhoneCodeAsync(string email, string code);
     }
 }

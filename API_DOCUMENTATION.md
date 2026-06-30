@@ -99,6 +99,7 @@ Response `data`:
     "cloudinaryEnabled": false
   },
   "verification": {
+    "requireConfirmedEmailForSellerLogin": true,
     "requireConfirmedPhoneForSellerLogin": true,
     "devVerificationInboxUrl": "/dev/verification"
   },
@@ -559,9 +560,11 @@ Response:
 
 Mantık:
 
-- Satıcı kaydı sonrası email ve telefon doğrulama akışı vardır.
-- Satıcı profili `AktifMi=false` başlar.
-- Email ve telefon doğrulanınca satıcı aktif hale gelir.
+- Satıcı kaydı sonrası email/telefon doğrulama akışı config'e bağlıdır.
+- `Verification:RequireConfirmedEmailForSellerLogin=true` veya `Verification:RequireConfirmedPhoneForSellerLogin=true` ise satıcı profili `AktifMi=false` başlar.
+- Zorunlu doğrulamalar tamamlanınca satıcı aktif hale gelir.
+- Gerçek email/SMS servisi yoksa bu flag'ler `false` yapılır; satıcı kayıt sonrası direkt aktif/login olabilir.
+- Config `Verification:RequireConfirmedEmailForSellerLogin=true` ise satıcı login için email doğrulaması gerekir.
 - Config `Verification:RequireConfirmedPhoneForSellerLogin=true` ise satıcı login için telefon doğrulaması da gerekir.
 
 ### 6.2 Alıcı Kaydı
@@ -661,6 +664,40 @@ UI kullanımı:
 
 ### 6.5 Email Doğrulama
 
+UI kod formu için ana endpoint:
+
+`POST /api/Auth/confirm-email`
+
+Auth: Yok
+
+Body:
+
+```json
+{
+  "email": "seller@example.com",
+  "code": "123456"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Email basariyla dogrulandi.",
+  "data": null,
+  "traceId": "..."
+}
+```
+
+UI notu:
+
+- Kullanıcıya `userId` kesinlikle sorulmaz.
+- Form alanları sadece `email` ve `code` olmalıdır.
+- Email mesajında hem kod hem de direkt doğrulama linki bulunur.
+
+Direkt link fallback endpointi:
+
 `GET /api/Auth/confirm-email?userId={userId}&token={token}`
 
 Auth: Yok
@@ -680,8 +717,42 @@ UI notu:
 
 - Link doğrudan API'ye gidiyorsa JSON döner.
 - Daha iyi UX için frontend bir doğrulama sayfası açıp query parametrelerini backend'e iletebilir.
+- Bu GET endpointi kullanıcı formu için değil, email linkinden tıklama senaryosu içindir.
 
 ### 6.6 Telefon Doğrulama
+
+UI kod formu için ana endpoint:
+
+`POST /api/Auth/confirm-phone`
+
+Auth: Yok
+
+Body:
+
+```json
+{
+  "email": "seller@example.com",
+  "code": "123456"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Telefon basariyla dogrulandi.",
+  "data": null,
+  "traceId": "..."
+}
+```
+
+UI notu:
+
+- Kullanıcıya `userId` sorulmaz.
+- SMS kodu girilirken email bilgisi kayıt formundan veya doğrulama ekran state'inden taşınmalıdır.
+
+Direkt link fallback endpointi:
 
 `GET /api/Auth/confirm-phone?userId={userId}&token={token}`
 
@@ -780,8 +851,8 @@ Response `data`:
     "id": "9d3457e5-7cd6-4d72-b160-1d7d1ac6e6f8",
     "channel": "email",
     "to": "seller@example.com",
-    "subject": "E-Posta Dogrulama",
-    "body": "Lutfen e-posta adresinizi dogrulamak icin <a href='http://localhost:5089/api/auth/confirm-email?...'>buraya tiklayin</a>",
+    "subject": "Yoremio email dogrulama",
+    "body": "Yoremio email dogrulama kodunuz: 123456 ... <a href='http://localhost:5089/api/auth/confirm-email?...'>Email adresimi dogrula</a>",
     "createdAtUtc": "2026-06-29T12:30:00Z"
   },
   {
@@ -815,9 +886,10 @@ UI akisi:
 1. Satici kayit formu `POST /api/Auth/register/satici` cagirir.
 2. Basarili response sonrasi UI kullaniciya "Email ve telefon dogrulama gerekiyor" mesaji gosterir.
 3. Development modunda gelistirici veya test kullanicisi `/dev/verification` ekranini acar.
-4. Email mesajindaki linke tiklanir: `GET /api/Auth/confirm-email`.
-5. SMS mesajindaki linke tiklanir veya kod UI tarafinda ayrica islenecekse body icinden kod okunur.
-6. Iki dogrulama da tamamlaninca satici profili aktif olur.
+4. Email mesajindaki kod `POST /api/Auth/confirm-email` ile `email + code` olarak gonderilir.
+5. SMS mesajindaki kod `POST /api/Auth/confirm-phone` ile `email + code` olarak gonderilir.
+6. Linke tiklama senaryosunda eski GET endpointleri de calisir, ama UI formunda `userId` istenmez.
+7. Zorunlu dogrulamalar tamamlaninca satici profili aktif olur.
 
 Gercek servis notu:
 
@@ -2104,7 +2176,7 @@ Satici kaydi:
 2. Identity kullanicisi olusturulur.
 3. `SaticiProfili` olusturulur ve `AktifMi=false` baslar.
 4. Kullaniciya `SATICI` ve `ALICI` rolleri verilir.
-5. Email dogrulama token'i ve telefon dogrulama kodu/linki uretilir.
+5. Email dogrulama kodu/linki ve telefon dogrulama kodu/linki uretilir.
 6. Mock sender aciksa mesajlar `/dev/verification` kutusuna duser.
 7. Email ve telefon dogrulaninca satici profili aktif olur.
 
@@ -2119,7 +2191,7 @@ Login:
 
 1. UI `POST /api/Auth/login` cagirir.
 2. Email/password kontrol edilir.
-3. Kullanici `SATICI` ise email dogrulama zorunludur.
+3. `Verification:RequireConfirmedEmailForSellerLogin=true` ise satici email dogrulamasi zorunludur.
 4. `Verification:RequireConfirmedPhoneForSellerLogin=true` ise satici telefon dogrulamasi da zorunludur.
 5. JWT icine user id, email, username ve tum roller yazilir.
 
@@ -2338,6 +2410,8 @@ Production icin zorunlu kurallar:
 - Migration uygulamasi pipeline veya kontrollu startup ayariyla yonetilmeli.
 - Local `wwwroot` uploadlari kalici disk olmayan ortamlarda kullanilmamali; Cloudinary acilmali.
 - SMTP/SMS gercek servis ayarlari secret olarak verilmeli.
+- Gercek SMTP/SMS baglanana kadar production demo ortaminda `Verification:RequireConfirmedEmailForSellerLogin=false` ve `Verification:RequireConfirmedPhoneForSellerLogin=false` kullanilabilir.
+- Gercek SMTP/SMS baglandiginda `Email:Smtp:UseMockSender=false`, `Sms:Twilio:UseMockSender=false` ve iki dogrulama flag'i `true` yapilmalidir.
 - CORS sadece gercek frontend originlerini icermeli.
 
 ### Frontend Screen Contract
@@ -2404,8 +2478,10 @@ Bu bolum UI ve deployment tarafinin yeni production kurallarini tek yerden gorme
 | `POST` | `/api/Auth/register/alici` | Hayır | - | Alıcı kaydı |
 | `POST` | `/api/Auth/login` | Hayır | - | JWT login |
 | `GET` | `/api/Auth/me` | Evet | Any | Aktif kullanıcı |
-| `GET` | `/api/Auth/confirm-email` | Hayır | - | Email doğrulama |
-| `GET` | `/api/Auth/confirm-phone` | Hayır | - | Telefon doğrulama |
+| `POST` | `/api/Auth/confirm-email` | Hayır | - | Email kod doğrulama (`email + code`) |
+| `POST` | `/api/Auth/confirm-phone` | Hayır | - | Telefon kod doğrulama (`email + code`) |
+| `GET` | `/api/Auth/confirm-email` | Hayır | - | Email link fallback doğrulama |
+| `GET` | `/api/Auth/confirm-phone` | Hayır | - | Telefon link fallback doğrulama |
 
 Auth ek endpoint:
 

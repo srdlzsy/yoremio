@@ -26,7 +26,9 @@ services:
       - key: Startup__SeedSampleData
         value: "false"
       - key: Verification__RequireConfirmedPhoneForSellerLogin
-        value: "true"
+        value: "false"
+      - key: Verification__RequireConfirmedEmailForSellerLogin
+        value: "false"
       - key: Verification__PublicBaseUrl
         sync: false
       - key: Email__Smtp__UseMockSender
