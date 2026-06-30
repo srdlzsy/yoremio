@@ -986,6 +986,39 @@ UI kullanımı:
 - Doğrulanmış satıcı rozeti
 - Güven skoru progress/ring göstergesi
 
+### 7.4 One Cikan Saticilar
+
+`GET /api/Profil/saticilar/one-cikan?take=6`
+
+Auth: Yok
+
+Response `data`:
+
+```json
+[
+  {
+    "kullaniciId": "seller-user-id",
+    "magazaAdi": "Posof Organik",
+    "sehir": "Ardahan",
+    "ilce": "Posof",
+    "dogrulanmisSatici": true,
+    "urunSayisi": 4,
+    "ortalamaPuan": 4.8,
+    "toplamYorum": 12,
+    "toplamFavori": 30,
+    "guvenSkoru": 87.5,
+    "kapakResimUrl": "/demo-media/yayla-bali/resimler/1.jpg"
+  }
+]
+```
+
+UI kullanimi:
+
+- Ana sayfadaki one cikan veya dogrulanmis saticilar bandi.
+- Satici kartinda magazanin kapak gorseli icin `kapakResimUrl`.
+- Rozet icin `dogrulanmisSatici`, sosyal kanit icin `ortalamaPuan`, `toplamYorum`, `toplamFavori`.
+- `kapakResimUrl` de urun medyasi gibi relative veya absolute olabilir; `resolveMediaUrl` helper'i kullanilmalidir.
+
 ## 8. Kategori API
 
 Kategori modeli:
@@ -1537,6 +1570,12 @@ Response:
   "aliciId": "buyer-user-id",
   "urunId": 10,
   "urunAdi": "Yayla Balı",
+  "urunResimUrl": "/demo-media/yayla-bali/resimler/1.jpg",
+  "urunFiyat": 420,
+  "saticiId": "seller-user-id",
+  "saticiMagazaAdi": "Posof Organik",
+  "saticiSehir": "Ardahan",
+  "saticiIlce": "Posof",
   "miktar": 3,
   "not": "Toplu alım için fiyat rica ederim.",
   "durum": "ACIK",
@@ -1595,6 +1634,7 @@ Response:
 UI kullanımı:
 
 - Taleplerim listesi
+- Talep kartinda urun gorseli, fiyat, satici magazasi ve lokasyon bilgisi
 - Talep detayında teklifler
 - Teklif kabul aksiyonu
 
@@ -2511,6 +2551,7 @@ Auth ek endpoint:
 | --- | --- | --- | --- | --- |
 | `GET` | `/api/Profil/satici` | Evet | `SATICI` | Satıcı profilim |
 | `PUT` | `/api/Profil/satici` | Evet | `SATICI` | Satıcı profil güncelle |
+| `GET` | `/api/Profil/saticilar/one-cikan` | Hayir | - | Ana sayfa icin one cikan saticilar |
 | `GET` | `/api/Profil/satici/{saticiId}/guven-skoru` | Hayır | - | Public satıcı güven skoru |
 
 ### Kategori

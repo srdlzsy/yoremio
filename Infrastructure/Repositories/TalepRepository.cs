@@ -18,9 +18,13 @@ namespace Infrastructure.Repositories
         {
             return await _dbContext.Set<Talep>()
                 .Include(t => t.Urun)
+                .ThenInclude(urun => urun!.Resimler)
+                .Include(t => t.Urun)
+                .ThenInclude(urun => urun!.Satici)
                 .Include(t => t.Teklifler)
                 .ThenInclude(teklif => teklif.Satici)
                 .ThenInclude(user => user!.SaticiProfili)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(t => t.Id == talepId);
         }
 
@@ -29,11 +33,15 @@ namespace Infrastructure.Repositories
             return await _dbContext.Set<Talep>()
                 .AsNoTracking()
                 .Include(t => t.Urun)
+                .ThenInclude(urun => urun!.Resimler)
+                .Include(t => t.Urun)
+                .ThenInclude(urun => urun!.Satici)
                 .Include(t => t.Teklifler)
                 .ThenInclude(teklif => teklif.Satici)
                 .ThenInclude(user => user!.SaticiProfili)
                 .Where(t => t.AliciId == aliciId)
                 .OrderByDescending(t => t.OlusturmaTarihi)
+                .AsSplitQuery()
                 .ToListAsync();
         }
 
@@ -42,11 +50,15 @@ namespace Infrastructure.Repositories
             return await _dbContext.Set<Talep>()
                 .AsNoTracking()
                 .Include(t => t.Urun)
+                .ThenInclude(urun => urun!.Resimler)
+                .Include(t => t.Urun)
+                .ThenInclude(urun => urun!.Satici)
                 .Include(t => t.Teklifler)
                 .ThenInclude(teklif => teklif.Satici)
                 .ThenInclude(user => user!.SaticiProfili)
                 .Where(t => t.Urun != null && t.Urun.SaticiId == saticiId)
                 .OrderByDescending(t => t.OlusturmaTarihi)
+                .AsSplitQuery()
                 .ToListAsync();
         }
 

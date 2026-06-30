@@ -19,6 +19,14 @@ namespace API.Controllers
             _saticiProfiliService = saticiProfiliService;
         }
 
+        [AllowAnonymous]
+        [HttpGet("saticilar/one-cikan")]
+        public async Task<IActionResult> GetOneCikanSaticilar([FromQuery] int take = 6)
+        {
+            var saticilar = await _saticiProfiliService.GetOneCikanSaticilarAsync(take);
+            return Ok(ApiResponse<IReadOnlyCollection<SaticiOzetDto>>.Ok(saticilar, "One cikan saticilar getirildi.", HttpContext.TraceIdentifier));
+        }
+
         [HttpGet("satici")]
         public async Task<IActionResult> GetSaticiProfil()
         {

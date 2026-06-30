@@ -10,5 +10,6 @@ namespace Application.Interfaces
         Task<SaticiProfilDto?> GetSaticiProfilDtoAsync(string kullaniciId);
         Task<SaticiProfilDto?> UpdateProfilAsync(string kullaniciId, SaticiProfilGuncelleDto dto);
         Task<SaticiGuvenSkoruDto?> GetGuvenSkoruAsync(string saticiId);
+        Task<IReadOnlyCollection<SaticiOzetDto>> GetOneCikanSaticilarAsync(int take);
     }
 }

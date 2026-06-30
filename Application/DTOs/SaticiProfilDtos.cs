@@ -45,4 +45,19 @@ namespace Application.DTOs
         public int ToplamFavori { get; set; }
         public double GuvenSkoru { get; set; }
     }
+
+    public class SaticiOzetDto
+    {
+        public string KullaniciId { get; set; } = string.Empty;
+        public string MagazaAdi { get; set; } = string.Empty;
+        public string? Sehir { get; set; }
+        public string? Ilce { get; set; }
+        public bool DogrulanmisSatici { get; set; }
+        public int UrunSayisi { get; set; }
+        public double OrtalamaPuan { get; set; }
+        public int ToplamYorum { get; set; }
+        public int ToplamFavori { get; set; }
+        public double GuvenSkoru { get; set; }
+        public string? KapakResimUrl { get; set; }
+    }
 }

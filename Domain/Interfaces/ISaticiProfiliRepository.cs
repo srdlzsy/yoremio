@@ -12,6 +12,7 @@ namespace Domain.Interfaces
         // SaticiProfili ile ilgili özel metodlar buraya eklenebilir
         // Örneğin, vergi numarasına göre arama gibi
         Task<SaticiProfili?> GetSaticiWithUserByIdAsync(string kullaniciId);
+        Task<IReadOnlyCollection<SaticiProfili>> GetOneCikanSaticilarAsync(int take);
 
         // Ek metod imzaları buraya eklenebilir
     }

@@ -42,6 +42,12 @@ namespace Application.DTOs
         public string AliciId { get; set; } = string.Empty;
         public int UrunId { get; set; }
         public string? UrunAdi { get; set; }
+        public string? UrunResimUrl { get; set; }
+        public decimal? UrunFiyat { get; set; }
+        public string? SaticiId { get; set; }
+        public string? SaticiMagazaAdi { get; set; }
+        public string? SaticiSehir { get; set; }
+        public string? SaticiIlce { get; set; }
         public int Miktar { get; set; }
         public string? Not { get; set; }
         public string Durum { get; set; } = string.Empty;
