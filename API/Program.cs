@@ -124,11 +124,18 @@ var allowedOrigins = configuredOrigins
     .Distinct(StringComparer.OrdinalIgnoreCase)
     .ToArray();
 
+var allowedVercelPreviewHostSuffixes = (configuration.GetSection("Cors:AllowedVercelPreviewHostSuffixes").Get<string[]>() ?? Array.Empty<string>())
+    .Concat(new[] { "-serdals-projects-e9817ac1.vercel.app" })
+    .Where(suffix => !string.IsNullOrWhiteSpace(suffix))
+    .Select(suffix => suffix.Trim().TrimStart('*').ToLowerInvariant())
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
-        policy.WithOrigins(allowedOrigins)
+        policy.SetIsOriginAllowed(origin => IsAllowedCorsOrigin(origin, allowedOrigins, allowedVercelPreviewHostSuffixes))
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -216,6 +223,7 @@ logger.LogInformation(
     jwtSettings.Issuer,
     jwtSettings.Audience);
 logger.LogInformation("CORS izinli originler: {AllowedOrigins}", string.Join(", ", allowedOrigins));
+logger.LogInformation("CORS izinli Vercel preview host suffixleri: {AllowedVercelPreviewHostSuffixes}", string.Join(", ", allowedVercelPreviewHostSuffixes));
 
 var applyMigrations = configuration.GetValue<bool?>("Startup:ApplyMigrations") ?? app.Environment.IsDevelopment();
 var seedSampleData = configuration.GetValue<bool?>("Startup:SeedSampleData") ?? app.Environment.IsDevelopment();
@@ -272,4 +280,27 @@ app.Run();
 static string NormalizeCorsOrigin(string origin)
 {
     return origin.Trim().TrimEnd('/');
+}
+
+static bool IsAllowedCorsOrigin(string origin, string[] allowedOrigins, string[] allowedVercelPreviewHostSuffixes)
+{
+    if (string.IsNullOrWhiteSpace(origin))
+    {
+        return false;
+    }
+
+    var normalizedOrigin = NormalizeCorsOrigin(origin);
+    if (allowedOrigins.Contains(normalizedOrigin, StringComparer.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    if (!Uri.TryCreate(normalizedOrigin, UriKind.Absolute, out var uri) ||
+        !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+    {
+        return false;
+    }
+
+    return uri.Host.StartsWith("yoremio-", StringComparison.OrdinalIgnoreCase) &&
+           allowedVercelPreviewHostSuffixes.Any(suffix => uri.Host.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
 }

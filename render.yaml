@@ -61,3 +61,5 @@ services:
         value: "https://www.yoremio.com"
       - key: Cors__AllowedOrigins__8
         value: "https://yoremio.com"
+      - key: Cors__AllowedVercelPreviewHostSuffixes__0
+        value: "-serdals-projects-e9817ac1.vercel.app"
