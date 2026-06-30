@@ -44,8 +44,20 @@ services:
       - key: Cloudinary__UploadFolder
         value: "yoremio"
       - key: Cors__AllowedOrigins__0
-        sync: false
+        value: "http://localhost:5173"
       - key: Cors__AllowedOrigins__1
-        value: "http://localhost:3000"
+        value: "https://localhost:5173"
       - key: Cors__AllowedOrigins__2
+        value: "http://localhost:3000"
+      - key: Cors__AllowedOrigins__3
         value: "https://localhost:3000"
+      - key: Cors__AllowedOrigins__4
+        value: "http://localhost:4200"
+      - key: Cors__AllowedOrigins__5
+        value: "https://localhost:4200"
+      - key: Cors__AllowedOrigins__6
+        value: "https://yoremio.vercel.app"
+      - key: Cors__AllowedOrigins__7
+        value: "https://www.yoremio.com"
+      - key: Cors__AllowedOrigins__8
+        value: "https://yoremio.com"

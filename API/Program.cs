@@ -103,11 +103,26 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("AliciPolicy", policy => policy.RequireRole(ApplicationRoles.Alici));
 });
 
-var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
-if (allowedOrigins == null || allowedOrigins.Length == 0)
+var configuredOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+var defaultAllowedOrigins = new[]
 {
-    allowedOrigins = new[] { "http://localhost:4200", "https://localhost:4200" };
-}
+    "http://localhost:4200",
+    "https://localhost:4200",
+    "http://localhost:5173",
+    "https://localhost:5173",
+    "http://localhost:3000",
+    "https://localhost:3000",
+    "https://yoremio.vercel.app",
+    "https://www.yoremio.com",
+    "https://yoremio.com"
+};
+
+var allowedOrigins = configuredOrigins
+    .Concat(defaultAllowedOrigins)
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .Select(NormalizeCorsOrigin)
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
 
 builder.Services.AddCors(options =>
 {
@@ -200,6 +215,7 @@ logger.LogInformation(
     app.Environment.EnvironmentName,
     jwtSettings.Issuer,
     jwtSettings.Audience);
+logger.LogInformation("CORS izinli originler: {AllowedOrigins}", string.Join(", ", allowedOrigins));
 
 var applyMigrations = configuration.GetValue<bool?>("Startup:ApplyMigrations") ?? app.Environment.IsDevelopment();
 var seedSampleData = configuration.GetValue<bool?>("Startup:SeedSampleData") ?? app.Environment.IsDevelopment();
@@ -252,3 +268,8 @@ app.MapHub<ChatHub>("/chathub").RequireAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static string NormalizeCorsOrigin(string origin)
+{
+    return origin.Trim().TrimEnd('/');
+}
