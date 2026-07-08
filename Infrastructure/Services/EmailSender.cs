@@ -65,7 +65,7 @@ namespace Infrastructure.Services
             };
 
             await smtpClient.SendMailAsync(mailMessage);
-            _logger.LogInformation("E-posta gönderildi. Alıcı: {Email}", to);
+            _logger.LogInformation("E-posta gönderildi. Provider: {Provider}, Alıcı: {Email}", _options.Provider, to);
         }
 
         private void ValidateOptions()
@@ -78,10 +78,23 @@ namespace Infrastructure.Services
                 throw new InvalidOperationException("SMTP ayarları eksik. Email:Smtp bölümünü doldurun.");
             }
 
+            if (ContainsPlaceholder(_options.UserName) ||
+                ContainsPlaceholder(_options.Password) ||
+                ContainsPlaceholder(_options.FromAddress))
+            {
+                throw new InvalidOperationException("SMTP ayarları placeholder değer içeriyor. Gerçek Email:Smtp credential bilgilerini girin.");
+            }
+
             if (_options.Port <= 0)
             {
                 throw new InvalidOperationException("SMTP port ayarı geçersiz.");
             }
+        }
+
+        private static bool ContainsPlaceholder(string value)
+        {
+            return value.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase) ||
+                   value.Contains("YOUR_", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

@@ -86,6 +86,8 @@ if (!builder.Environment.IsDevelopment())
     {
         throw new InvalidOperationException("Production ortaminda ConnectionStrings:DefaultConnection gercek secret/config ile verilmelidir.");
     }
+
+    ValidateProductionVerificationConfiguration(configuration);
 }
 
 builder.Services.AddInfrastructure(configuration);
@@ -303,4 +305,46 @@ static bool IsAllowedCorsOrigin(string origin, string[] allowedOrigins, string[]
 
     return uri.Host.StartsWith("yoremio-", StringComparison.OrdinalIgnoreCase) &&
            allowedVercelPreviewHostSuffixes.Any(suffix => uri.Host.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
+}
+
+static void ValidateProductionVerificationConfiguration(IConfiguration configuration)
+{
+    var requireEmail = configuration.GetValue<bool>("Verification:RequireConfirmedEmailForSellerLogin");
+    var requirePhone = configuration.GetValue<bool>("Verification:RequireConfirmedPhoneForSellerLogin");
+
+    if (requireEmail && configuration.GetValue<bool>("Email:Smtp:UseMockSender"))
+    {
+        throw new InvalidOperationException("Production ortaminda email dogrulamasi zorunluysa Email:Smtp:UseMockSender=false olmalidir.");
+    }
+
+    if (requireEmail &&
+        (IsMissingOrPlaceholder(configuration["Email:Smtp:Host"]) ||
+         IsMissingOrPlaceholder(configuration["Email:Smtp:UserName"]) ||
+         IsMissingOrPlaceholder(configuration["Email:Smtp:Password"]) ||
+         IsMissingOrPlaceholder(configuration["Email:Smtp:FromAddress"])))
+    {
+        throw new InvalidOperationException("Production ortaminda email dogrulamasi zorunluysa gercek Email:Smtp ayarlari verilmelidir.");
+    }
+
+    if (requirePhone && configuration.GetValue<bool>("Sms:Twilio:UseMockSender"))
+    {
+        throw new InvalidOperationException("Production ortaminda telefon dogrulamasi zorunluysa Sms:Twilio:UseMockSender=false olmalidir.");
+    }
+
+    if (requirePhone &&
+        (IsMissingOrPlaceholder(configuration["Sms:Twilio:AccountSid"]) ||
+         IsMissingOrPlaceholder(configuration["Sms:Twilio:AuthToken"]) ||
+         IsMissingOrPlaceholder(configuration["Sms:Twilio:FromNumber"])))
+    {
+        throw new InvalidOperationException("Production ortaminda telefon dogrulamasi zorunluysa gercek Sms:Twilio ayarlari verilmelidir.");
+    }
+}
+
+static bool IsMissingOrPlaceholder(string? value)
+{
+    return string.IsNullOrWhiteSpace(value) ||
+           value.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("YOUR_", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("xxxxxxxx", StringComparison.OrdinalIgnoreCase) ||
+           value.Contains("smtp.example.com", StringComparison.OrdinalIgnoreCase);
 }

@@ -2,6 +2,7 @@ namespace Infrastructure.Options
 {
     public class TwilioSmsOptions
     {
+        public string Provider { get; set; } = "Twilio";
         public string ApiBaseUrl { get; set; } = "https://api.twilio.com";
         public string AccountSid { get; set; } = string.Empty;
         public string AuthToken { get; set; } = string.Empty;

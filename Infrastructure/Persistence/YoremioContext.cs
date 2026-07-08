@@ -25,6 +25,7 @@ namespace Infrastructure.Persistence
         public DbSet<Yorum> Yorumlar { get; set; } = null!;
         public DbSet<Puan> Puanlar { get; set; } = null!;
         public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
+        public DbSet<Bildirim> Bildirimler { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -170,6 +171,39 @@ namespace Infrastructure.Persistence
 
             builder.Entity<ChatMessage>()
                 .HasIndex(m => new { m.ReceiverId, m.SenderId, m.SentAt });
+
+            builder.Entity<Bildirim>()
+                .Property(b => b.Tur)
+                .HasMaxLength(50);
+
+            builder.Entity<Bildirim>()
+                .Property(b => b.Baslik)
+                .HasMaxLength(120);
+
+            builder.Entity<Bildirim>()
+                .Property(b => b.Mesaj)
+                .HasMaxLength(500);
+
+            builder.Entity<Bildirim>()
+                .Property(b => b.IlgiliVarlikTuru)
+                .HasMaxLength(50);
+
+            builder.Entity<Bildirim>()
+                .Property(b => b.IlgiliVarlikId)
+                .HasMaxLength(100);
+
+            builder.Entity<Bildirim>()
+                .Property(b => b.AksiyonUrl)
+                .HasMaxLength(300);
+
+            builder.Entity<Bildirim>()
+                .HasOne(b => b.Kullanici)
+                .WithMany()
+                .HasForeignKey(b => b.KullaniciId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<Bildirim>()
+                .HasIndex(b => new { b.KullaniciId, b.OkunmaTarihi, b.OlusturmaTarihi });
 
             builder.Entity<UrunFavori>()
                 .HasIndex(f => new { f.KullaniciId, f.UrunId })

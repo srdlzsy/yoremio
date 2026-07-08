@@ -183,6 +183,13 @@ Chat:
 - `POST /api/Chat/messages/{otherUserId}/read`
 - SignalR: `/chathub`
 
+Bildirim:
+
+- `GET /api/Bildirim`
+- `GET /api/Bildirim/okunmamis-sayisi`
+- `POST /api/Bildirim/{bildirimId}/okundu`
+- `POST /api/Bildirim/tumunu-okundu`
+
 Profil:
 
 - `GET /api/Profil/satici`
@@ -197,6 +204,32 @@ Profil:
 - `Startup:ApplyMigrations` ve `Startup:SeedSampleData` bos/null birakilirsa sadece Development ortaminda otomatik calisir.
 - `RateLimiting:PermitLimit` ve `RateLimiting:WindowSeconds` global API rate limit davranisini belirler.
 - `Cloudinary:Enabled=true` verilirse yeni urun medya uploadlari Cloudinary CDN'e yuklenir. Gerekli ayarlar: `Cloudinary:CloudName`, `Cloudinary:ApiKey`, `Cloudinary:ApiSecret`, `Cloudinary:UploadFolder`.
+
+### Gercek Email/SMS Saglayicilari
+
+Email dogrulama icin SMTP uyumlu ucretsiz kotali servisler kullanilabilir:
+
+- Brevo: `Email:Smtp:Provider=Brevo`, `Host=smtp-relay.brevo.com`, `UserName=<Brevo SMTP login>`, `Password=<Brevo SMTP key>`
+- Resend: `Email:Smtp:Provider=Resend`, `Host=smtp.resend.com`, `UserName=resend`, `Password=<Resend API key>`
+
+Gercek email gondermek icin `Email:Smtp:UseMockSender=false` yapilmalidir.
+
+Render deploy varsayilani Brevo ile gercek email dogrulama gonderecek sekildedir:
+
+- `Verification:RequireConfirmedEmailForSellerLogin=true`
+- `Email:Smtp:UseMockSender=false`
+- `Verification:RequireConfirmedPhoneForSellerLogin=false`
+
+Deploy oncesi Render dashboard'da `Email__Smtp__UserName`, `Email__Smtp__Password`, `Email__Smtp__FromAddress` ve `Verification__PublicBaseUrl` secret/config degerleri girilmelidir. Bu degerler eksikse production uygulama bilincli olarak acilmaz.
+
+Telefon dogrulama tarafinda surdurulebilir tamamen ucretsiz SMS servisi yoktur. Mevcut entegrasyon Twilio SMS API ile calisir:
+
+- `Sms:Twilio:UseMockSender=false`
+- `Sms:Twilio:AccountSid=<Twilio Account SID>`
+- `Sms:Twilio:AuthToken=<Twilio Auth Token>`
+- `Sms:Twilio:FromNumber=<Twilio SMS enabled number>`
+
+Twilio trial kisa test icin kullanilabilir; trial hesaplarinda alici ve bolge kisitlari olabilir. Production icin ya Twilio ucretli hesaba gecilmeli ya da `Verification:RequireConfirmedPhoneForSellerLogin=false` ile telefon zorunlulugu kapatilmalidir.
 
 ## Production Notlari
 

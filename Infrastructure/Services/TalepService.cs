@@ -10,11 +10,16 @@ namespace Infrastructure.Services
     {
         private readonly ITalepRepository _talepRepository;
         private readonly IUrunRepository _urunRepository;
+        private readonly IBildirimService _bildirimService;
 
-        public TalepService(ITalepRepository talepRepository, IUrunRepository urunRepository)
+        public TalepService(
+            ITalepRepository talepRepository,
+            IUrunRepository urunRepository,
+            IBildirimService bildirimService)
         {
             _talepRepository = talepRepository;
             _urunRepository = urunRepository;
+            _bildirimService = bildirimService;
         }
 
         public async Task<TalepDto> TalepOlusturAsync(string aliciId, TalepOlusturDto dto)
@@ -38,6 +43,21 @@ namespace Infrastructure.Services
             await _talepRepository.SaveChangesAsync();
 
             var created = await _talepRepository.GetByIdWithDetailsAsync(talep.Id) ?? talep;
+            if (!string.IsNullOrWhiteSpace(urun.SaticiId) &&
+                !string.Equals(urun.SaticiId, aliciId, StringComparison.Ordinal))
+            {
+                await _bildirimService.BildirimOlusturAsync(new BildirimOlusturDto
+                {
+                    KullaniciId = urun.SaticiId,
+                    Tur = BildirimTurleri.Talep,
+                    Baslik = "Yeni talep",
+                    Mesaj = $"{urun.Adi} urunu icin yeni talep olusturuldu.",
+                    IlgiliVarlikTuru = "Talep",
+                    IlgiliVarlikId = talep.Id.ToString(),
+                    AksiyonUrl = $"/talepler/{talep.Id}"
+                });
+            }
+
             return MapTalepDto(created);
         }
 
@@ -81,6 +101,7 @@ namespace Infrastructure.Services
                 await _talepRepository.SaveChangesAsync();
 
                 var updated = await _talepRepository.GetTeklifByIdWithDetailsAsync(mevcutTeklif.Id) ?? mevcutTeklif;
+                await TeklifBildirimiGonderAsync(talep, mevcutTeklif);
                 return MapTalepTeklifDto(updated);
             }
 
@@ -97,6 +118,7 @@ namespace Infrastructure.Services
             await _talepRepository.SaveChangesAsync();
 
             var created = await _talepRepository.GetTeklifByIdWithDetailsAsync(teklif.Id) ?? teklif;
+            await TeklifBildirimiGonderAsync(talep, teklif);
             return MapTalepTeklifDto(created);
         }
 
@@ -130,7 +152,32 @@ namespace Infrastructure.Services
             await _talepRepository.SaveChangesAsync();
 
             var updatedTalep = await _talepRepository.GetByIdWithDetailsAsync(teklif.TalepId) ?? teklif.Talep;
+            await _bildirimService.BildirimOlusturAsync(new BildirimOlusturDto
+            {
+                KullaniciId = teklif.SaticiId,
+                Tur = BildirimTurleri.Teklif,
+                Baslik = "Teklif kabul edildi",
+                Mesaj = $"{teklif.Talep.Urun?.Adi ?? "Urun"} icin verdiginiz teklif kabul edildi.",
+                IlgiliVarlikTuru = "TalepTeklif",
+                IlgiliVarlikId = teklif.Id.ToString(),
+                AksiyonUrl = $"/talepler/{teklif.TalepId}"
+            });
+
             return MapTalepDto(updatedTalep);
+        }
+
+        private async Task TeklifBildirimiGonderAsync(Talep talep, TalepTeklif teklif)
+        {
+            await _bildirimService.BildirimOlusturAsync(new BildirimOlusturDto
+            {
+                KullaniciId = talep.AliciId,
+                Tur = BildirimTurleri.Teklif,
+                Baslik = "Yeni teklif",
+                Mesaj = $"{talep.Urun?.Adi ?? "Urun"} talebiniz icin yeni teklif var.",
+                IlgiliVarlikTuru = "TalepTeklif",
+                IlgiliVarlikId = teklif.Id.ToString(),
+                AksiyonUrl = $"/talepler/{talep.Id}"
+            });
         }
 
         private static TalepDto MapTalepDto(Talep talep)

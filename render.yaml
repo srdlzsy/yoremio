@@ -28,13 +28,39 @@ services:
       - key: Verification__RequireConfirmedPhoneForSellerLogin
         value: "false"
       - key: Verification__RequireConfirmedEmailForSellerLogin
-        value: "false"
+        value: "true"
       - key: Verification__PublicBaseUrl
         sync: false
       - key: Email__Smtp__UseMockSender
+        value: "false"
+      - key: Email__Smtp__Provider
+        value: "Brevo"
+      - key: Email__Smtp__Host
+        value: "smtp-relay.brevo.com"
+      - key: Email__Smtp__Port
+        value: "587"
+      - key: Email__Smtp__EnableSsl
         value: "true"
+      - key: Email__Smtp__UserName
+        sync: false
+      - key: Email__Smtp__Password
+        sync: false
+      - key: Email__Smtp__FromAddress
+        sync: false
+      - key: Email__Smtp__FromName
+        value: "Yoremio"
       - key: Sms__Twilio__UseMockSender
         value: "true"
+      - key: Sms__Twilio__Provider
+        value: "Twilio"
+      - key: Sms__Twilio__ApiBaseUrl
+        value: "https://api.twilio.com"
+      - key: Sms__Twilio__AccountSid
+        sync: false
+      - key: Sms__Twilio__AuthToken
+        sync: false
+      - key: Sms__Twilio__FromNumber
+        sync: false
       - key: Cloudinary__Enabled
         sync: false
       - key: Cloudinary__CloudName

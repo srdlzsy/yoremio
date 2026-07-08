@@ -34,7 +34,8 @@ var tests = new (string Name, Action Test)[]
     ("Kategori yazma endpointleri admin rolü istemeli", KategoriController_WriteEndpoints_Should_RequireAdminRole),
     ("ChatHub iki parametreli güvenli SendMessage metodu sunmalı", ChatHub_Should_ExposeSecureSendMethod),
     ("ChatHub okundu bilgisini desteklemeli", ChatHub_Should_ExposeReadReceiptMethod),
-    ("Chat API korumalı geçmiş endpointleri sunmalı", ChatController_Should_RequireAuthAndExposeHistory)
+    ("Chat API korumalı geçmiş endpointleri sunmalı", ChatController_Should_RequireAuthAndExposeHistory),
+    ("Bildirim API korumali okuma ve okundu endpointleri sunmali", BildirimController_Should_RequireAuthAndExposeNotificationEndpoints)
 };
 
 var failed = new List<string>();
@@ -295,6 +296,18 @@ static void ChatController_Should_RequireAuthAndExposeHistory()
     AssertHttpMethod(typeof(ChatController), nameof(ChatController.GetMessages), typeof(HttpGetAttribute));
     AssertHttpMethod(typeof(ChatController), nameof(ChatController.SendMessage), typeof(HttpPostAttribute));
     AssertHttpMethod(typeof(ChatController), nameof(ChatController.MarkConversationRead), typeof(HttpPostAttribute));
+}
+
+static void BildirimController_Should_RequireAuthAndExposeNotificationEndpoints()
+{
+    var authorize = typeof(BildirimController).GetCustomAttribute<AuthorizeAttribute>();
+    if (authorize == null)
+        throw new InvalidOperationException("BildirimController uzerinde Authorize attribute bulunamadi.");
+
+    AssertHttpMethod(typeof(BildirimController), nameof(BildirimController.GetBildirimler), typeof(HttpGetAttribute));
+    AssertHttpMethod(typeof(BildirimController), nameof(BildirimController.GetOkunmamisSayisi), typeof(HttpGetAttribute));
+    AssertHttpMethod(typeof(BildirimController), nameof(BildirimController.OkunduIsaretle), typeof(HttpPostAttribute));
+    AssertHttpMethod(typeof(BildirimController), nameof(BildirimController.TumunuOkunduIsaretle), typeof(HttpPostAttribute));
 }
 
 static List<string> Validate(object instance)

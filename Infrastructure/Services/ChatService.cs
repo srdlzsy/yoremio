@@ -1,5 +1,6 @@
 using Application.DTOs;
 using Application.Interfaces;
+using Domain.Constants;
 using Domain.Entities;
 using Domain.Interfaces;
 
@@ -12,10 +13,12 @@ namespace Infrastructure.Services
         private const int ConversationScanLimit = 5000;
 
         private readonly IChatMessageRepository _chatMessageRepository;
+        private readonly IBildirimService _bildirimService;
 
-        public ChatService(IChatMessageRepository chatMessageRepository)
+        public ChatService(IChatMessageRepository chatMessageRepository, IBildirimService bildirimService)
         {
             _chatMessageRepository = chatMessageRepository;
+            _bildirimService = bildirimService;
         }
 
         public async Task<ChatMessageDto> SendMessageAsync(string senderId, string receiverId, string message)
@@ -64,6 +67,17 @@ namespace Infrastructure.Services
 
             await _chatMessageRepository.AddAsync(entity);
             await _chatMessageRepository.SaveChangesAsync();
+
+            await _bildirimService.BildirimOlusturAsync(new BildirimOlusturDto
+            {
+                KullaniciId = receiverId,
+                Tur = BildirimTurleri.Mesaj,
+                Baslik = "Yeni mesaj",
+                Mesaj = "Yeni bir mesajiniz var.",
+                IlgiliVarlikTuru = "ChatMessage",
+                IlgiliVarlikId = entity.Id.ToString(),
+                AksiyonUrl = $"/chat/{senderId}"
+            });
 
             return MapToDto(entity, senderId);
         }

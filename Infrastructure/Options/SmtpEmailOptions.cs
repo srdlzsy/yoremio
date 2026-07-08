@@ -2,6 +2,7 @@ namespace Infrastructure.Options
 {
     public class SmtpEmailOptions
     {
+        public string Provider { get; set; } = "Custom";
         public string Host { get; set; } = string.Empty;
         public int Port { get; set; } = 587;
         public bool EnableSsl { get; set; } = true;

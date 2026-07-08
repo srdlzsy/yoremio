@@ -79,7 +79,7 @@ namespace Infrastructure.Services
                 throw new InvalidOperationException($"SMS gönderimi başarısız. Durum: {(int)response.StatusCode}, Yanıt: {responseBody}");
             }
 
-            _logger.LogInformation("SMS gönderildi. Alıcı: {Phone}", phoneNumber);
+            _logger.LogInformation("SMS gönderildi. Provider: {Provider}, Alıcı: {Phone}", _options.Provider, phoneNumber);
         }
 
         private void ValidateOptions()
@@ -91,6 +91,20 @@ namespace Infrastructure.Services
             {
                 throw new InvalidOperationException("SMS sağlayıcı ayarları eksik. Sms:Twilio bölümünü doldurun.");
             }
+
+            if (ContainsPlaceholder(_options.AccountSid) ||
+                ContainsPlaceholder(_options.AuthToken) ||
+                ContainsPlaceholder(_options.FromNumber))
+            {
+                throw new InvalidOperationException("SMS ayarları placeholder değer içeriyor. Gerçek Sms:Twilio credential bilgilerini girin.");
+            }
+        }
+
+        private static bool ContainsPlaceholder(string value)
+        {
+            return value.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase) ||
+                   value.Contains("xxxxxxxx", StringComparison.OrdinalIgnoreCase) ||
+                   value.Contains("YOUR_", StringComparison.OrdinalIgnoreCase);
         }
     }
 

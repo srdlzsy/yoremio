@@ -1836,6 +1836,55 @@ Mantık:
 - Sadece karşı kullanıcıdan gelen ve `readAt=null` olan mesajları günceller.
 - Karşı kullanıcı online ise `MessagesRead(readerUserId, readAtUtc)` eventini alır.
 
+### 13.6 Bildirim API
+
+Bildirimler login kullanicinin header badge, panel uyarilari ve aksiyon listesi icin kullanilir. Su olaylarda otomatik bildirim olusur:
+
+- Yeni chat mesaji alan kullaniciya `MESAJ`.
+- Urune talep acildiginda saticiya `TALEP`.
+- Talebe teklif verildiginde aliciya `TEKLIF`.
+- Teklif kabul edildiginde saticiya `TEKLIF`.
+
+`GET /api/Bildirim?sadeceOkunmamis=false&page=1&pageSize=20`
+
+Auth: Var
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Bildirimler getirildi.",
+  "data": {
+    "items": [
+      {
+        "id": 12,
+        "tur": "TEKLIF",
+        "baslik": "Yeni teklif",
+        "mesaj": "Yayla Bali talebiniz icin yeni teklif var.",
+        "ilgiliVarlikTuru": "TalepTeklif",
+        "ilgiliVarlikId": "5",
+        "aksiyonUrl": "/talepler/1",
+        "olusturmaTarihi": "2026-07-08T13:20:00Z",
+        "okunmaTarihi": null,
+        "okunduMu": false
+      }
+    ],
+    "page": 1,
+    "pageSize": 20,
+    "totalCount": 1,
+    "totalPages": 1,
+    "okunmamisSayisi": 1
+  }
+}
+```
+
+Ek endpointler:
+
+- `GET /api/Bildirim/okunmamis-sayisi`
+- `POST /api/Bildirim/{bildirimId}/okundu`
+- `POST /api/Bildirim/tumunu-okundu`
+
 ## 14. Dashboard API
 
 Dashboard endpointleri UI'nin loading/empty state ve panel kartlarini daha az istekle doldurmasi icin vardir. Liste verisi yerine sayac ve KPI doner; detay tablolar icin ilgili liste endpointleri kullanilmaya devam eder.

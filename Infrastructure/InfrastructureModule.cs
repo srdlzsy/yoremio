@@ -71,6 +71,7 @@ namespace Infrastructure
             services.AddScoped<IYorumRepository, YorumRepository>();
             services.AddScoped<IPuanRepository, PuanRepository>();
             services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
+            services.AddScoped<IBildirimRepository, BildirimRepository>();
 
 
 
@@ -99,6 +100,7 @@ namespace Infrastructure
             services.AddScoped<IYorumServices, YorumServices>();
             services.AddScoped<IPuanService, PuanService>();
             services.AddScoped<IChatService, ChatService>();
+            services.AddScoped<IBildirimService, BildirimService>();
             services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
 
             return services;
