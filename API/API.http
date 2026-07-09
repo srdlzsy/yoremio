@@ -30,7 +30,7 @@ Content-Type: application/json
 
 {
   "email": "{{sellerEmail}}",
-  "code": "519536"
+  "code": "738230"
 }
 
 ###

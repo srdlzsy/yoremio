@@ -8,6 +8,8 @@ namespace Infrastructure.Options
         public bool EnableSsl { get; set; } = true;
         public string UserName { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
+        public string ApiKey { get; set; } = string.Empty;
+        public string ApiBaseUrl { get; set; } = "https://api.brevo.com";
         public string FromAddress { get; set; } = string.Empty;
         public string FromName { get; set; } = "Yoremio";
         public int TimeoutSeconds { get; set; } = 30;

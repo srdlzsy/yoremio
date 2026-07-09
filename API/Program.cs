@@ -356,10 +356,23 @@ static bool IsAllowedCorsOrigin(string origin, string[] allowedOrigins, string[]
 static void ValidateProductionVerificationConfiguration(IConfiguration configuration)
 {
     var requireEmail = configuration.GetValue<bool>("Verification:RequireConfirmedEmailForSellerLogin");
+    var emailProvider = configuration["Email:Smtp:Provider"];
 
     if (requireEmail && configuration.GetValue<bool>("Email:Smtp:UseMockSender"))
     {
         throw new InvalidOperationException("Production ortaminda email dogrulamasi zorunluysa Email:Smtp:UseMockSender=false olmalidir.");
+    }
+
+    if (requireEmail && UsesBrevoApiProvider(emailProvider))
+    {
+        if ((IsMissingOrPlaceholder(configuration["Email:Smtp:ApiKey"]) &&
+             IsMissingOrPlaceholder(configuration["Email:Smtp:Password"])) ||
+            IsMissingOrPlaceholder(configuration["Email:Smtp:FromAddress"]))
+        {
+            throw new InvalidOperationException("Production ortaminda Brevo API ile email dogrulamasi icin Email:Smtp:ApiKey ve Email:Smtp:FromAddress verilmelidir.");
+        }
+
+        return;
     }
 
     if (requireEmail &&
@@ -370,6 +383,13 @@ static void ValidateProductionVerificationConfiguration(IConfiguration configura
     {
         throw new InvalidOperationException("Production ortaminda email dogrulamasi zorunluysa gercek Email:Smtp ayarlari verilmelidir.");
     }
+}
+
+static bool UsesBrevoApiProvider(string? provider)
+{
+    return string.Equals(provider, "BrevoApi", StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(provider, "BrevoHttp", StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(provider, "BrevoTransactionalApi", StringComparison.OrdinalIgnoreCase);
 }
 
 static bool IsMissingOrPlaceholder(string? value)

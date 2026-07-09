@@ -225,19 +225,21 @@ docker compose -f docker-compose.local.yml up --build
 
 ### Gercek Email Saglayicilari
 
-Email dogrulama icin SMTP uyumlu ucretsiz kotali servisler kullanilabilir:
+Email dogrulama icin SMTP uyumlu veya HTTPS API destekli ucretsiz kotali servisler kullanilabilir:
 
+- Brevo API: `Email:Smtp:Provider=BrevoApi`, `ApiKey=<Brevo API key>`, `ApiBaseUrl=https://api.brevo.com`
 - Brevo: `Email:Smtp:Provider=Brevo`, `Host=smtp-relay.brevo.com`, `UserName=<Brevo SMTP login>`, `Password=<Brevo SMTP key>`
 - Resend: `Email:Smtp:Provider=Resend`, `Host=smtp.resend.com`, `UserName=resend`, `Password=<Resend API key>`
 
 Gercek email gondermek icin `Email:Smtp:UseMockSender=false` yapilmalidir.
 
-Render deploy varsayilani Brevo ile gercek email dogrulama gonderecek sekildedir:
+Render deploy varsayilani SMTP port timeout riskini azaltmak icin Brevo API ile gercek email dogrulama gonderecek sekildedir:
 
 - `Verification:RequireConfirmedEmailForSellerLogin=true`
 - `Email:Smtp:UseMockSender=false`
+- `Email:Smtp:Provider=BrevoApi`
 
-Deploy oncesi Render dashboard'da `Email__Smtp__UserName`, `Email__Smtp__Password`, `Email__Smtp__FromAddress` ve `Verification__PublicBaseUrl` secret/config degerleri girilmelidir. Bu degerler eksikse production uygulama bilincli olarak acilmaz.
+Deploy oncesi Render dashboard'da `Email__Smtp__ApiKey`, `Email__Smtp__FromAddress` ve `Verification__PublicBaseUrl` secret/config degerleri girilmelidir. SMTP provider kullanilacaksa `Email__Smtp__UserName` ve `Email__Smtp__Password` da girilmelidir. Bu degerler eksikse production uygulama bilincli olarak acilmaz.
 
 ## Production Notlari
 

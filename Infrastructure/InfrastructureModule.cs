@@ -56,6 +56,7 @@ namespace Infrastructure
             services.Configure<SmtpEmailOptions>(configuration.GetSection("Email:Smtp"));
             services.Configure<VerificationOptions>(configuration.GetSection("Verification"));
             services.Configure<CloudinaryOptions>(configuration.GetSection("Cloudinary"));
+            services.AddHttpClient();
             services.AddSingleton<IVerificationOutbox, InMemoryVerificationOutbox>();
             // Generic Repository & Service (her Entity için)
             services.AddScoped(typeof(IBaseRepository<>), typeof(BaseRepository<>));

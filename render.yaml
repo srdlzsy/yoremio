@@ -32,7 +32,11 @@ services:
       - key: Email__Smtp__UseMockSender
         value: "false"
       - key: Email__Smtp__Provider
-        value: "Brevo"
+        value: "BrevoApi"
+      - key: Email__Smtp__ApiKey
+        sync: false
+      - key: Email__Smtp__ApiBaseUrl
+        value: "https://api.brevo.com"
       - key: Email__Smtp__Host
         value: "smtp-relay.brevo.com"
       - key: Email__Smtp__Port
