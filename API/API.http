@@ -1,6 +1,55 @@
 @API_HostAddress = http://localhost:5089
+@sellerEmail = hayalperest7508@gmail.com
+@sellerPassword = Test123!
 
-GET {{API_HostAddress}}/weatherforecast/
+GET {{API_HostAddress}}/health
 Accept: application/json
 
 ###
+
+# Satici kaydi: sellerEmail degerini kendi test emailinle degistir.
+POST {{API_HostAddress}}/api/Auth/register/satici
+Content-Type: application/json
+
+{
+  "email": "{{sellerEmail}}",
+  "phoneNumber": "+905551112233",
+  "password": "{{sellerPassword}}",
+  "magazaAdi": "Local Test Magaza",
+  "vergiNo": "{{$timestamp}}",
+  "adres": "Local test adresi",
+  "sehir": "Istanbul",
+  "ilce": "Kadikoy"
+}
+
+###
+
+# Mailde gelen kodu buraya yaz.
+POST {{API_HostAddress}}/api/Auth/confirm-email
+Content-Type: application/json
+
+{
+  "email": "{{sellerEmail}}",
+  "code": "519536"
+}
+
+###
+
+# Email dogrulanmadan login 401 donmeli; dogrulama sonrasi token doner.
+POST {{API_HostAddress}}/api/Auth/login
+Content-Type: application/json
+
+{
+  "email": "{{sellerEmail}}",
+  "password": "{{sellerPassword}}"
+}
+
+###
+
+# Mail gelmezse dogrulama emailini tekrar gonder.
+POST {{API_HostAddress}}/api/Auth/resend-verification
+Content-Type: application/json
+
+{
+  "email": "{{sellerEmail}}"
+}

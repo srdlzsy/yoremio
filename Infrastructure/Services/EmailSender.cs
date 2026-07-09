@@ -43,11 +43,17 @@ namespace Infrastructure.Services
                 return;
             }
 
-            ValidateOptions();
+            var host = NormalizeOption(_options.Host);
+            var userName = NormalizeOption(_options.UserName);
+            var password = NormalizeOption(_options.Password);
+            var fromAddress = NormalizeOption(_options.FromAddress);
+            var fromName = NormalizeOption(_options.FromName);
+
+            ValidateOptions(host, userName, password, fromAddress);
 
             using var mailMessage = new MailMessage
             {
-                From = new MailAddress(_options.FromAddress, _options.FromName),
+                From = new MailAddress(fromAddress, fromName),
                 Subject = subject,
                 Body = htmlMessage,
                 IsBodyHtml = true
@@ -55,12 +61,12 @@ namespace Infrastructure.Services
 
             mailMessage.To.Add(to);
 
-            using var smtpClient = new SmtpClient(_options.Host, _options.Port)
+            using var smtpClient = new SmtpClient(host, _options.Port)
             {
                 EnableSsl = _options.EnableSsl,
                 DeliveryMethod = SmtpDeliveryMethod.Network,
                 UseDefaultCredentials = false,
-                Credentials = new NetworkCredential(_options.UserName, _options.Password),
+                Credentials = new NetworkCredential(userName, password),
                 Timeout = _options.TimeoutSeconds * 1000
             };
 
@@ -68,19 +74,19 @@ namespace Infrastructure.Services
             _logger.LogInformation("E-posta gönderildi. Provider: {Provider}, Alıcı: {Email}", _options.Provider, to);
         }
 
-        private void ValidateOptions()
+        private void ValidateOptions(string host, string userName, string password, string fromAddress)
         {
-            if (string.IsNullOrWhiteSpace(_options.Host) ||
-                string.IsNullOrWhiteSpace(_options.UserName) ||
-                string.IsNullOrWhiteSpace(_options.Password) ||
-                string.IsNullOrWhiteSpace(_options.FromAddress))
+            if (string.IsNullOrWhiteSpace(host) ||
+                string.IsNullOrWhiteSpace(userName) ||
+                string.IsNullOrWhiteSpace(password) ||
+                string.IsNullOrWhiteSpace(fromAddress))
             {
                 throw new InvalidOperationException("SMTP ayarları eksik. Email:Smtp bölümünü doldurun.");
             }
 
-            if (ContainsPlaceholder(_options.UserName) ||
-                ContainsPlaceholder(_options.Password) ||
-                ContainsPlaceholder(_options.FromAddress))
+            if (ContainsPlaceholder(userName) ||
+                ContainsPlaceholder(password) ||
+                ContainsPlaceholder(fromAddress))
             {
                 throw new InvalidOperationException("SMTP ayarları placeholder değer içeriyor. Gerçek Email:Smtp credential bilgilerini girin.");
             }
@@ -95,6 +101,29 @@ namespace Infrastructure.Services
         {
             return value.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase) ||
                    value.Contains("YOUR_", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeOption(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var normalized = value.Trim();
+            if (normalized.Length >= 2 &&
+                ((normalized[0] == '"' && normalized[^1] == '"') ||
+                 (normalized[0] == '\'' && normalized[^1] == '\'')))
+            {
+                normalized = normalized[1..^1];
+            }
+
+            return normalized
+                .Replace("\\r", string.Empty, StringComparison.Ordinal)
+                .Replace("\\n", string.Empty, StringComparison.Ordinal)
+                .Replace("\r", string.Empty, StringComparison.Ordinal)
+                .Replace("\n", string.Empty, StringComparison.Ordinal)
+                .Trim();
         }
     }
 }
