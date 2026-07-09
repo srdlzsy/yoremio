@@ -16,4 +16,10 @@ namespace Application.DTOs
         public string? KullaniciAdi { get; set; }
     }
 
+    public class YorumYetkisiDto
+    {
+        public bool YorumYapabilir { get; set; }
+        public string? Sebep { get; set; }
+    }
+
 }

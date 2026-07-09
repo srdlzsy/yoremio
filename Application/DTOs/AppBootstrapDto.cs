@@ -25,7 +25,6 @@ namespace Application.DTOs
     public sealed class AppVerificationConfigDto
     {
         public bool RequireConfirmedEmailForSellerLogin { get; set; }
-        public bool RequireConfirmedPhoneForSellerLogin { get; set; }
         public string? DevVerificationInboxUrl { get; set; }
     }
 

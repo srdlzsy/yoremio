@@ -160,6 +160,13 @@ namespace Infrastructure.Services
                 ? 0
                 : Math.Round(aktifUrunler.SelectMany(u => u.Puanlar).Average(p => p.PuanDegeri), 1);
             var guvenSkoru = CalculateTrustScore(satici, aktifUrunler, ortalamaPuan, toplamYorum, toplamFavori);
+            var vitrinUrunler = aktifUrunler
+                .OrderByDescending(u => u.Favoriler.Count)
+                .ThenByDescending(u => u.Puanlar.Count == 0 ? 0 : u.Puanlar.Average(p => p.PuanDegeri))
+                .ThenByDescending(u => u.Yorumlar.Count)
+                .ThenByDescending(u => u.OlusturmaTarihi)
+                .ToList();
+            var vitrinUrun = vitrinUrunler.FirstOrDefault();
 
             return new SaticiOzetDto
             {
@@ -173,9 +180,8 @@ namespace Infrastructure.Services
                 ToplamYorum = toplamYorum,
                 ToplamFavori = toplamFavori,
                 GuvenSkoru = guvenSkoru,
-                KapakResimUrl = aktifUrunler
-                    .OrderByDescending(u => u.Favoriler.Count)
-                    .ThenByDescending(u => u.Puanlar.Count == 0 ? 0 : u.Puanlar.Average(p => p.PuanDegeri))
+                VitrinUrunId = vitrinUrun?.Id,
+                KapakResimUrl = vitrinUrunler
                     .SelectMany(u => u.Resimler)
                     .Select(r => r.Url)
                     .FirstOrDefault()
@@ -204,8 +210,7 @@ namespace Infrastructure.Services
         {
             return !string.IsNullOrWhiteSpace(satici.VergiNo)
                 && satici.Kullanici is not null
-                && satici.Kullanici.EmailConfirmed
-                && satici.Kullanici.PhoneNumberConfirmed;
+                && satici.Kullanici.EmailConfirmed;
         }
     }
 }

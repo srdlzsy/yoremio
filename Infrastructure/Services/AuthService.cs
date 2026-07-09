@@ -7,6 +7,7 @@ using Infrastructure.Options;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text;
 
@@ -18,29 +19,28 @@ namespace Infrastructure.Services
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IConfiguration _configuration;
         private readonly IEmailSend _emailSender;
-        private readonly ISmsSender _smsSender;
         private readonly VerificationOptions _verificationOptions;
+        private readonly ILogger<AuthService> _logger;
 
         public AuthService(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             IConfiguration configuration,
             IEmailSend emailSender,
-            ISmsSender smsSender,
-            IOptions<VerificationOptions> verificationOptions)
+            IOptions<VerificationOptions> verificationOptions,
+            ILogger<AuthService> logger)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _configuration = configuration;
             _emailSender = emailSender;
-            _smsSender = smsSender;
             _verificationOptions = verificationOptions.Value;
+            _logger = logger;
         }
 
         public async Task<(bool Succeeded, string? Error)> RegisterSaticiAsync(RegisterSaticiDto dto)
         {
             var requireEmailConfirmation = _verificationOptions.RequireConfirmedEmailForSellerLogin;
-            var requirePhoneConfirmation = _verificationOptions.RequireConfirmedPhoneForSellerLogin;
 
             var user = new ApplicationUser
             {
@@ -48,7 +48,7 @@ namespace Infrastructure.Services
                 Email = dto.Email,
                 PhoneNumber = dto.PhoneNumber,
                 EmailConfirmed = !requireEmailConfirmation,
-                PhoneNumberConfirmed = !requirePhoneConfirmation,
+                PhoneNumberConfirmed = true,
                 SaticiProfili = new SaticiProfili
                 {
                     MagazaAdi = dto.MagazaAdi,
@@ -56,7 +56,7 @@ namespace Infrastructure.Services
                     Adres = dto.Adres,
                     Sehir = dto.Sehir,
                     Ilce = dto.Ilce,
-                    AktifMi = !requireEmailConfirmation && !requirePhoneConfirmation
+                    AktifMi = !requireEmailConfirmation
                 },
                 AliciProfili = new AliciProfili
                 {
@@ -77,22 +77,28 @@ namespace Infrastructure.Services
                 return (false, string.Join(" | ", roleResult.Errors.Select(e => e.Description)));
             }
 
-            try
+            var deliveryFailures = new List<string>();
+
+            if (requireEmailConfirmation)
             {
-                if (requireEmailConfirmation)
+                try
                 {
                     await SendEmailConfirmationAsync(user);
                 }
-
-                if (requirePhoneConfirmation)
+                catch (Exception ex)
                 {
-                    await SendPhoneConfirmationAsync(user);
+                    deliveryFailures.Add("Email: " + ex.Message);
+                    _logger.LogWarning(
+                        ex,
+                        "Satici email dogrulama mesaji gonderilemedi. UserId: {UserId}, Email: {Email}",
+                        user.Id,
+                        user.Email);
                 }
             }
-            catch (Exception ex)
+
+            if (deliveryFailures.Count > 0)
             {
-                await _userManager.DeleteAsync(user);
-                return (false, "Dogrulama mesaji gonderilemedi: " + ex.Message);
+                return (true, "Dogrulama mesaji gonderilemedi: " + string.Join(" | ", deliveryFailures));
             }
 
             return (true, null);
@@ -143,13 +149,6 @@ namespace Infrastructure.Services
                 return (false, null, "Email dogrulanmamis.");
             }
 
-            if (userRoles.Contains(ApplicationRoles.Satici) &&
-                _verificationOptions.RequireConfirmedPhoneForSellerLogin &&
-                !await _userManager.IsPhoneNumberConfirmedAsync(user))
-            {
-                return (false, null, "Telefon dogrulanmamis.");
-            }
-
             var token = user.JwtGenerateToken(_configuration, userRoles);
             return (true, token, null);
         }
@@ -168,8 +167,7 @@ namespace Infrastructure.Services
                 return (true, null);
             }
 
-            if (await _userManager.IsEmailConfirmedAsync(user) &&
-                await _userManager.IsPhoneNumberConfirmedAsync(user))
+            if (await _userManager.IsEmailConfirmedAsync(user))
             {
                 return (true, null);
             }
@@ -180,12 +178,6 @@ namespace Infrastructure.Services
                     !await _userManager.IsEmailConfirmedAsync(user))
                 {
                     await SendEmailConfirmationAsync(user);
-                }
-
-                if (_verificationOptions.RequireConfirmedPhoneForSellerLogin &&
-                    !await _userManager.IsPhoneNumberConfirmedAsync(user))
-                {
-                    await SendPhoneConfirmationAsync(user);
                 }
 
                 return (true, null);
@@ -208,24 +200,6 @@ namespace Infrastructure.Services
             var decodedToken = Encoding.UTF8.GetString(decodedBytes);
 
             var result = await _userManager.ConfirmEmailAsync(user, decodedToken);
-            return result.Succeeded;
-        }
-
-        public async Task<bool> ConfirmPhoneAsync(string userId, string token)
-        {
-            var user = await _userManager.FindByIdAsync(userId);
-            if (user == null || string.IsNullOrEmpty(user.PhoneNumber))
-            {
-                return false;
-            }
-
-            var isValid = await _userManager.VerifyChangePhoneNumberTokenAsync(user, token, user.PhoneNumber);
-            if (!isValid)
-            {
-                return false;
-            }
-
-            var result = await _userManager.ChangePhoneNumberAsync(user, user.PhoneNumber, token);
             return result.Succeeded;
         }
 
@@ -258,29 +232,6 @@ namespace Infrastructure.Services
             return (result.Succeeded, user.Id);
         }
 
-        public async Task<(bool Succeeded, string? UserId)> ConfirmPhoneCodeAsync(string email, string code)
-        {
-            var user = await _userManager.FindByEmailAsync(email.Trim());
-            if (user == null || string.IsNullOrWhiteSpace(user.PhoneNumber))
-            {
-                return (false, null);
-            }
-
-            if (await _userManager.IsPhoneNumberConfirmedAsync(user))
-            {
-                return (true, user.Id);
-            }
-
-            var isValid = await _userManager.VerifyChangePhoneNumberTokenAsync(user, code.Trim(), user.PhoneNumber);
-            if (!isValid)
-            {
-                return (false, user.Id);
-            }
-
-            var result = await _userManager.ChangePhoneNumberAsync(user, user.PhoneNumber, code.Trim());
-            return (result.Succeeded, user.Id);
-        }
-
         private async Task SendEmailConfirmationAsync(ApplicationUser user)
         {
             if (string.IsNullOrWhiteSpace(user.Email))
@@ -300,31 +251,10 @@ namespace Infrastructure.Services
                 $"Isterseniz bu linkten de dogrulayabilirsiniz: <a href='{emailConfirmationLink}'>Email adresimi dogrula</a>");
         }
 
-        private async Task SendPhoneConfirmationAsync(ApplicationUser user)
-        {
-            if (string.IsNullOrWhiteSpace(user.PhoneNumber))
-            {
-                throw new InvalidOperationException("Kullanici telefon numarasi bos olamaz.");
-            }
-
-            var smsCode = await _userManager.GenerateChangePhoneNumberTokenAsync(user, user.PhoneNumber);
-            var phoneConfirmationLink = BuildPhoneConfirmationLink(user.Id, smsCode);
-
-            await _smsSender.SendSmsAsync(
-                user.PhoneNumber,
-                $"Yoremio telefon dogrulama kodunuz: {smsCode}. Dogrulama baglantisi: {phoneConfirmationLink}");
-        }
-
         private string BuildEmailConfirmationLink(string userId, string encodedEmailToken)
         {
             var baseUrl = GetPublicBaseUrl();
             return $"{baseUrl}/api/auth/confirm-email?userId={Uri.EscapeDataString(userId)}&token={Uri.EscapeDataString(encodedEmailToken)}";
-        }
-
-        private string BuildPhoneConfirmationLink(string userId, string token)
-        {
-            var baseUrl = GetPublicBaseUrl();
-            return $"{baseUrl}/api/auth/confirm-phone?userId={Uri.EscapeDataString(userId)}&token={Uri.EscapeDataString(token)}";
         }
 
         private string GetPublicBaseUrl()

@@ -11,14 +11,4 @@ namespace Application.DTOs
         [Required(ErrorMessage = "Dogrulama kodu bos olamaz.")]
         public string Code { get; set; } = string.Empty;
     }
-
-    public class ConfirmPhoneDto
-    {
-        [Required(ErrorMessage = "Email bos olamaz.")]
-        [EmailAddress(ErrorMessage = "Gecerli bir email adresi giriniz.")]
-        public string Email { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "Telefon dogrulama kodu bos olamaz.")]
-        public string Code { get; set; } = string.Empty;
-    }
 }

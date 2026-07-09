@@ -1,0 +1,9 @@
+services:
+  yoremio-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.local
+    ports:
+      - "5089:8080"

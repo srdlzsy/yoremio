@@ -59,5 +59,6 @@ namespace Application.DTOs
         public int ToplamFavori { get; set; }
         public double GuvenSkoru { get; set; }
         public string? KapakResimUrl { get; set; }
+        public int? VitrinUrunId { get; set; }
     }
 }

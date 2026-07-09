@@ -7,6 +7,15 @@ namespace Infrastructure.Services
 {
     public class KategoriService : BaseService<Kategori>, IKategoriService
     {
+        private static readonly IReadOnlyCollection<KategoriSeed> DefaultCategories = new[]
+        {
+            new KategoriSeed("Sebze", "Mevsiminde toplanmis organik sebzeler"),
+            new KategoriSeed("Meyve", "Taze ve dogal meyveler"),
+            new KategoriSeed("Sut Urunleri", "Gunluk sut, peynir ve yogurt cesitleri"),
+            new KategoriSeed("Bakliyat", "Katkisiz kuru gida urunleri"),
+            new KategoriSeed("Kahvaltilik", "Bal, recel, yumurta ve kahvaltilik urunler")
+        };
+
         private readonly IKategoriRepository _kategoriRepository;
 
         public KategoriService(IKategoriRepository kategoriRepository)
@@ -17,7 +26,22 @@ namespace Infrastructure.Services
 
         public async Task<IEnumerable<KategoriDto>> GetAllDtosAsync()
         {
-            var kategoriler = await _kategoriRepository.GetAllAsync();
+            var kategoriler = (await _kategoriRepository.GetAllAsync()).ToList();
+            if (kategoriler.Count == 0)
+            {
+                foreach (var seed in DefaultCategories)
+                {
+                    await _kategoriRepository.AddAsync(new Kategori
+                    {
+                        Adi = seed.Name,
+                        Aciklama = seed.Description
+                    });
+                }
+
+                await _kategoriRepository.SaveChangesAsync();
+                kategoriler = (await _kategoriRepository.GetAllAsync()).ToList();
+            }
+
             return kategoriler.OrderBy(x => x.Adi).Select(MapToDto);
         }
 
@@ -79,5 +103,7 @@ namespace Infrastructure.Services
                 Aciklama = kategori.Aciklama
             };
         }
+
+        private sealed record KategoriSeed(string Name, string Description);
     }
 }

@@ -18,6 +18,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 
 JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+LoadLocalEnvironmentFile();
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
@@ -284,6 +285,51 @@ static string NormalizeCorsOrigin(string origin)
     return origin.Trim().TrimEnd('/');
 }
 
+static void LoadLocalEnvironmentFile()
+{
+    var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+    while (directory != null)
+    {
+        var envPath = Path.Combine(directory.FullName, ".env.local");
+        if (File.Exists(envPath))
+        {
+            foreach (var rawLine in File.ReadLines(envPath))
+            {
+                var line = rawLine.Trim();
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+                {
+                    continue;
+                }
+
+                if (line.StartsWith("export ", StringComparison.OrdinalIgnoreCase))
+                {
+                    line = line["export ".Length..].TrimStart();
+                }
+
+                var separatorIndex = line.IndexOf('=');
+                if (separatorIndex <= 0)
+                {
+                    continue;
+                }
+
+                var key = line[..separatorIndex].Trim();
+                var value = line[(separatorIndex + 1)..].Trim();
+                if (value.Length >= 2 &&
+                    ((value[0] == '"' && value[^1] == '"') || (value[0] == '\'' && value[^1] == '\'')))
+                {
+                    value = value[1..^1];
+                }
+
+                Environment.SetEnvironmentVariable(key, value.Trim());
+            }
+
+            return;
+        }
+
+        directory = directory.Parent;
+    }
+}
+
 static bool IsAllowedCorsOrigin(string origin, string[] allowedOrigins, string[] allowedVercelPreviewHostSuffixes)
 {
     if (string.IsNullOrWhiteSpace(origin))
@@ -310,7 +356,6 @@ static bool IsAllowedCorsOrigin(string origin, string[] allowedOrigins, string[]
 static void ValidateProductionVerificationConfiguration(IConfiguration configuration)
 {
     var requireEmail = configuration.GetValue<bool>("Verification:RequireConfirmedEmailForSellerLogin");
-    var requirePhone = configuration.GetValue<bool>("Verification:RequireConfirmedPhoneForSellerLogin");
 
     if (requireEmail && configuration.GetValue<bool>("Email:Smtp:UseMockSender"))
     {
@@ -324,19 +369,6 @@ static void ValidateProductionVerificationConfiguration(IConfiguration configura
          IsMissingOrPlaceholder(configuration["Email:Smtp:FromAddress"])))
     {
         throw new InvalidOperationException("Production ortaminda email dogrulamasi zorunluysa gercek Email:Smtp ayarlari verilmelidir.");
-    }
-
-    if (requirePhone && configuration.GetValue<bool>("Sms:Twilio:UseMockSender"))
-    {
-        throw new InvalidOperationException("Production ortaminda telefon dogrulamasi zorunluysa Sms:Twilio:UseMockSender=false olmalidir.");
-    }
-
-    if (requirePhone &&
-        (IsMissingOrPlaceholder(configuration["Sms:Twilio:AccountSid"]) ||
-         IsMissingOrPlaceholder(configuration["Sms:Twilio:AuthToken"]) ||
-         IsMissingOrPlaceholder(configuration["Sms:Twilio:FromNumber"])))
-    {
-        throw new InvalidOperationException("Production ortaminda telefon dogrulamasi zorunluysa gercek Sms:Twilio ayarlari verilmelidir.");
     }
 }
 

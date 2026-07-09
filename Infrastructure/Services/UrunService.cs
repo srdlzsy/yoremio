@@ -266,8 +266,7 @@ namespace Infrastructure.Services
                 SaticiSehir = urun.Satici?.Sehir,
                 SaticiIlce = urun.Satici?.Ilce,
                 SaticiDogrulanmis = urun.Satici?.Kullanici is not null
-                    && urun.Satici.Kullanici.EmailConfirmed
-                    && urun.Satici.Kullanici.PhoneNumberConfirmed,
+                    && urun.Satici.Kullanici.EmailConfirmed,
                 OrtalamaPuan = urun.Puanlar.Count == 0 ? 0 : Math.Round(urun.Puanlar.Average(p => p.PuanDegeri), 1),
                 ToplamPuan = urun.Puanlar.Count,
                 ToplamYorum = urun.Yorumlar.Count,

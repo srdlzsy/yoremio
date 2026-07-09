@@ -9,6 +9,5 @@ namespace Application.DTOs
         public string? Role { get; set; }
         public IReadOnlyCollection<string> Roles { get; set; } = Array.Empty<string>();
         public bool EmailConfirmed { get; set; }
-        public bool PhoneNumberConfirmed { get; set; }
     }
 }

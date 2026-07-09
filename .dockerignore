@@ -5,3 +5,6 @@ artifacts/
 publish/
 **/publish/
 .git/
+.env
+.env.*
+!.env.example

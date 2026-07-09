@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Logging;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
@@ -42,10 +41,22 @@ namespace API.Controllers
             var result = await _authService.RegisterSaticiAsync(dto);
             if (!result.Succeeded)
             {
-                return BadRequest(ApiResponse<object>.Fail("Satıcı kaydı başarısız.", result.Error, HttpContext.TraceIdentifier));
+                return BadRequest(ApiResponse<object>.Fail("Satici kaydi basarisiz.", result.Error, HttpContext.TraceIdentifier));
             }
 
-            return Ok(ApiResponse<object>.Ok(null, "Satıcı kaydı başarılı.", HttpContext.TraceIdentifier));
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                return Ok(ApiResponse<object>.Ok(
+                    new
+                    {
+                        verificationMessageSent = false,
+                        warning = result.Error
+                    },
+                    "Satici kaydi alindi. Email dogrulama mesaji gonderilemedi; daha sonra yeniden gonderebilirsiniz.",
+                    HttpContext.TraceIdentifier));
+            }
+
+            return Ok(ApiResponse<object>.Ok(null, "Satici kaydi basarili.", HttpContext.TraceIdentifier));
         }
 
         [HttpPost("register/alici")]
@@ -54,10 +65,10 @@ namespace API.Controllers
             var result = await _authService.RegisterAliciAsync(dto);
             if (!result.Succeeded)
             {
-                return BadRequest(ApiResponse<object>.Fail("Alıcı kaydı başarısız.", result.Error, HttpContext.TraceIdentifier));
+                return BadRequest(ApiResponse<object>.Fail("Alici kaydi basarisiz.", result.Error, HttpContext.TraceIdentifier));
             }
 
-            return Ok(ApiResponse<object>.Ok(null, "Alıcı kaydı başarılı.", HttpContext.TraceIdentifier));
+            return Ok(ApiResponse<object>.Ok(null, "Alici kaydi basarili.", HttpContext.TraceIdentifier));
         }
 
         [HttpPost("login")]
@@ -66,7 +77,7 @@ namespace API.Controllers
             var result = await _authService.LoginAsync(dto);
             if (!result.Succeeded || string.IsNullOrWhiteSpace(result.Token))
             {
-                return Unauthorized(ApiResponse<object>.Fail("Giriş başarısız.", result.Error, HttpContext.TraceIdentifier));
+                return Unauthorized(ApiResponse<object>.Fail("Giris basarisiz.", result.Error, HttpContext.TraceIdentifier));
             }
 
             var handler = new JwtSecurityTokenHandler();
@@ -87,7 +98,7 @@ namespace API.Controllers
                 Roles = roles
             };
 
-            return Ok(ApiResponse<LoginResponseDto>.Ok(response, "Giriş başarılı.", HttpContext.TraceIdentifier));
+            return Ok(ApiResponse<LoginResponseDto>.Ok(response, "Giris basarili.", HttpContext.TraceIdentifier));
         }
 
         [HttpPost("resend-verification")]
@@ -96,12 +107,12 @@ namespace API.Controllers
             var result = await _authService.ResendVerificationAsync(dto);
             if (!result.Succeeded)
             {
-                return BadRequest(ApiResponse<object>.Fail("Dogrulama mesaji gonderilemedi.", result.Error, HttpContext.TraceIdentifier));
+                return BadRequest(ApiResponse<object>.Fail("Email dogrulama mesaji gonderilemedi.", result.Error, HttpContext.TraceIdentifier));
             }
 
             return Ok(ApiResponse<object>.Ok(
                 null,
-                "Dogrulama mesaji varsa yeniden gonderildi.",
+                "Email dogrulama mesaji varsa yeniden gonderildi.",
                 HttpContext.TraceIdentifier));
         }
 
@@ -119,20 +130,6 @@ namespace API.Controllers
             return Ok(ApiResponse<object>.Ok(null, "Email basariyla dogrulandi.", HttpContext.TraceIdentifier));
         }
 
-        [AllowAnonymous]
-        [HttpPost("confirm-phone")]
-        public async Task<IActionResult> ConfirmPhoneCode([FromBody] ConfirmPhoneDto dto)
-        {
-            var result = await _authService.ConfirmPhoneCodeAsync(dto.Email, dto.Code);
-            if (!result.Succeeded || string.IsNullOrWhiteSpace(result.UserId))
-            {
-                return BadRequest(ApiResponse<object>.Fail("Telefon dogrulama basarisiz.", traceId: HttpContext.TraceIdentifier));
-            }
-
-            await TryActivateVerifiedSellerAsync(result.UserId);
-            return Ok(ApiResponse<object>.Ok(null, "Telefon basariyla dogrulandi.", HttpContext.TraceIdentifier));
-        }
-
         [Authorize]
         [HttpGet("me")]
         public async Task<IActionResult> Me()
@@ -140,13 +137,13 @@ namespace API.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId))
             {
-                return Unauthorized(ApiResponse<object>.Fail("Kullanıcı doğrulanamadı.", traceId: HttpContext.TraceIdentifier));
+                return Unauthorized(ApiResponse<object>.Fail("Kullanici dogrulanamadi.", traceId: HttpContext.TraceIdentifier));
             }
 
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
-                return NotFound(ApiResponse<object>.Fail("Kullanıcı bulunamadı.", traceId: HttpContext.TraceIdentifier));
+                return NotFound(ApiResponse<object>.Fail("Kullanici bulunamadi.", traceId: HttpContext.TraceIdentifier));
             }
 
             var roles = await _userManager.GetRolesAsync(user);
@@ -159,11 +156,10 @@ namespace API.Controllers
                 PhoneNumber = user.PhoneNumber,
                 Role = roles.FirstOrDefault(),
                 Roles = roles.ToArray(),
-                EmailConfirmed = user.EmailConfirmed,
-                PhoneNumberConfirmed = user.PhoneNumberConfirmed
+                EmailConfirmed = user.EmailConfirmed
             };
 
-            return Ok(ApiResponse<AuthMeDto>.Ok(data, "Kullanıcı bilgisi getirildi.", HttpContext.TraceIdentifier));
+            return Ok(ApiResponse<AuthMeDto>.Ok(data, "Kullanici bilgisi getirildi.", HttpContext.TraceIdentifier));
         }
 
         [AllowAnonymous]
@@ -172,44 +168,21 @@ namespace API.Controllers
         {
             if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(token))
             {
-                _logger.LogWarning("Email doğrulama: userId veya token boş. IP: {IP}", HttpContext.Connection.RemoteIpAddress);
-                return BadRequest(ApiResponse<object>.Fail("Geçersiz doğrulama parametreleri.", traceId: HttpContext.TraceIdentifier));
+                _logger.LogWarning("Email dogrulama: userId veya token bos. IP: {IP}", HttpContext.Connection.RemoteIpAddress);
+                return BadRequest(ApiResponse<object>.Fail("Gecersiz dogrulama parametreleri.", traceId: HttpContext.TraceIdentifier));
             }
 
             var result = await _authService.ConfirmEmailAsync(userId, token);
             if (!result)
             {
-                _logger.LogWarning("Email doğrulama başarısız. UserId: {UserId}, IP: {IP}", userId, HttpContext.Connection.RemoteIpAddress);
-                return BadRequest(ApiResponse<object>.Fail("Email doğrulama başarısız.", traceId: HttpContext.TraceIdentifier));
+                _logger.LogWarning("Email dogrulama basarisiz. UserId: {UserId}, IP: {IP}", userId, HttpContext.Connection.RemoteIpAddress);
+                return BadRequest(ApiResponse<object>.Fail("Email dogrulama basarisiz.", traceId: HttpContext.TraceIdentifier));
             }
 
             await TryActivateVerifiedSellerAsync(userId);
 
-            _logger.LogInformation("Email başarıyla doğrulandı. UserId: {UserId}", userId);
-            return Ok(ApiResponse<object>.Ok(null, "Email başarıyla doğrulandı.", HttpContext.TraceIdentifier));
-        }
-
-        [AllowAnonymous]
-        [HttpGet("confirm-phone")]
-        public async Task<IActionResult> ConfirmPhone([FromQuery] string userId, [FromQuery] string token)
-        {
-            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(token))
-            {
-                _logger.LogWarning("Telefon doğrulama: userId veya token boş. IP: {IP}", HttpContext.Connection.RemoteIpAddress);
-                return BadRequest(ApiResponse<object>.Fail("Geçersiz doğrulama parametreleri.", traceId: HttpContext.TraceIdentifier));
-            }
-
-            var result = await _authService.ConfirmPhoneAsync(userId, token);
-            if (!result)
-            {
-                _logger.LogWarning("Telefon doğrulama başarısız. UserId: {UserId}, IP: {IP}", userId, HttpContext.Connection.RemoteIpAddress);
-                return BadRequest(ApiResponse<object>.Fail("Telefon doğrulama başarısız.", traceId: HttpContext.TraceIdentifier));
-            }
-
-            await TryActivateVerifiedSellerAsync(userId);
-
-            _logger.LogInformation("Telefon başarıyla doğrulandı. UserId: {UserId}", userId);
-            return Ok(ApiResponse<object>.Ok(null, "Telefon başarıyla doğrulandı.", HttpContext.TraceIdentifier));
+            _logger.LogInformation("Email basariyla dogrulandi. UserId: {UserId}", userId);
+            return Ok(ApiResponse<object>.Ok(null, "Email basariyla dogrulandi.", HttpContext.TraceIdentifier));
         }
 
         private async Task TryActivateVerifiedSellerAsync(string userId)
@@ -221,9 +194,7 @@ namespace API.Controllers
             }
 
             var emailOk = !_verificationOptions.RequireConfirmedEmailForSellerLogin || satici.Kullanici.EmailConfirmed;
-            var phoneOk = !_verificationOptions.RequireConfirmedPhoneForSellerLogin || satici.Kullanici.PhoneNumberConfirmed;
-
-            if (!emailOk || !phoneOk)
+            if (!emailOk)
             {
                 return;
             }

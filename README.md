@@ -200,12 +200,30 @@ Profil:
 
 - JWT ayarlari `API/appsettings.json` icindeki `Jwt` bolumunden gelir.
 - CORS allowlist `Cors:AllowedOrigins` uzerinden yonetilir.
-- `Verification:PublicBaseUrl`, `Email:Smtp` ve `Sms:Twilio` ayarlari satici dogrulama akisinda kullanilir.
+- `Verification:PublicBaseUrl` ve `Email:Smtp` ayarlari satici email dogrulama akisinda kullanilir.
 - `Startup:ApplyMigrations` ve `Startup:SeedSampleData` bos/null birakilirsa sadece Development ortaminda otomatik calisir.
 - `RateLimiting:PermitLimit` ve `RateLimiting:WindowSeconds` global API rate limit davranisini belirler.
 - `Cloudinary:Enabled=true` verilirse yeni urun medya uploadlari Cloudinary CDN'e yuklenir. Gerekli ayarlar: `Cloudinary:CloudName`, `Cloudinary:ApiKey`, `Cloudinary:ApiSecret`, `Cloudinary:UploadFolder`.
 
-### Gercek Email/SMS Saglayicilari
+### Local Production Ayarlari
+
+API baslarken repo kokundeki `.env.local` dosyasini otomatik okur. Bu dosya `.gitignore` icindedir; canli veritabani, Cloudinary, SMTP ve JWT secret degerleri burada tutulabilir.
+
+Localde ayni production ayarlariyla calistirmak icin:
+
+```powershell
+dotnet run --project API
+```
+
+Docker ile localde ayni ayarlari kullanmak icin:
+
+```powershell
+docker compose -f docker-compose.local.yml up --build
+```
+
+`.env.local` icinde `ASPNETCORE_ENVIRONMENT=Production` varsa uygulama production kurallariyla acilir. Satici dogrulamasinda sadece email kullanilir.
+
+### Gercek Email Saglayicilari
 
 Email dogrulama icin SMTP uyumlu ucretsiz kotali servisler kullanilabilir:
 
@@ -218,27 +236,17 @@ Render deploy varsayilani Brevo ile gercek email dogrulama gonderecek sekildedir
 
 - `Verification:RequireConfirmedEmailForSellerLogin=true`
 - `Email:Smtp:UseMockSender=false`
-- `Verification:RequireConfirmedPhoneForSellerLogin=false`
 
 Deploy oncesi Render dashboard'da `Email__Smtp__UserName`, `Email__Smtp__Password`, `Email__Smtp__FromAddress` ve `Verification__PublicBaseUrl` secret/config degerleri girilmelidir. Bu degerler eksikse production uygulama bilincli olarak acilmaz.
 
-Telefon dogrulama tarafinda surdurulebilir tamamen ucretsiz SMS servisi yoktur. Mevcut entegrasyon Twilio SMS API ile calisir:
-
-- `Sms:Twilio:UseMockSender=false`
-- `Sms:Twilio:AccountSid=<Twilio Account SID>`
-- `Sms:Twilio:AuthToken=<Twilio Auth Token>`
-- `Sms:Twilio:FromNumber=<Twilio SMS enabled number>`
-
-Twilio trial kisa test icin kullanilabilir; trial hesaplarinda alici ve bolge kisitlari olabilir. Production icin ya Twilio ucretli hesaba gecilmeli ya da `Verification:RequireConfirmedPhoneForSellerLogin=false` ile telefon zorunlulugu kapatilmalidir.
-
 ## Production Notlari
 
-- JWT key, SMTP/Twilio bilgileri ve veritabani connection string production ortaminda environment variable, user secret veya secret manager ile verilmelidir.
+- JWT key, SMTP bilgileri ve veritabani connection string production ortaminda environment variable, user secret veya secret manager ile verilmelidir.
 - Production ortaminda varsayilan `Jwt:Key` kullanilirsa uygulama acilista hata verir.
 - Render gibi kalici disk vermeyen ortamlarda local `wwwroot` uploadlari production icin uygun degildir; Cloudinary veya benzeri kalici obje/CDN servisi kullanilmalidir.
 - Migration uygulamasi production deployment pipeline'inda kontrollu calistirilmelidir; uygulama icinde acmak icin `Startup:ApplyMigrations=true` verilebilir.
 - Seed verisi production'da kapali tutulmalidir; `Startup:SeedSampleData=true` sadece test/demo ortamlarinda kullanilmalidir.
-- Satici girisi varsayilan olarak email ve telefon dogrulamasi ister. Bu davranis `Verification:RequireConfirmedPhoneForSellerLogin` ile yonetilir.
+- Satici girisi varsayilan olarak email dogrulamasi ister.
 
 ## Dokumantasyon
 

@@ -20,12 +20,16 @@ namespace Infrastructure.Services
 
         public async Task<YorumDto> YorumEkleAsync(YorumEkleDto dto, string kullaniciId)
         {
-            var urun = await _urunRepository.GetByIdAsync(dto.UrunId);
-            if (urun == null)
-                throw new Exception("Ürün bulunamadı.");
+            var yetki = await GetYorumYetkisiAsync(dto.UrunId, kullaniciId);
+            if (!yetki.YorumYapabilir)
+            {
+                if (string.Equals(yetki.Sebep, "Urun bulunamadi.", StringComparison.Ordinal))
+                {
+                    throw new KeyNotFoundException(yetki.Sebep);
+                }
 
-            if (!await _talepRepository.HasAcceptedDemandForProductAsync(kullaniciId, dto.UrunId))
-                throw new UnauthorizedAccessException("Yorum yapabilmek icin bu urunle ilgili kabul edilmis bir talebiniz olmalidir.");
+                throw new UnauthorizedAccessException(yetki.Sebep ?? "Yorum yapma yetkiniz yok.");
+            }
 
             var yorum = new Yorum
             {
@@ -39,6 +43,60 @@ namespace Infrastructure.Services
             await _yorumRepository.SaveChangesAsync();
 
             return MapToDto(yorum);
+        }
+
+        public async Task<YorumYetkisiDto> GetYorumYetkisiAsync(int urunId, string kullaniciId)
+        {
+            if (string.IsNullOrWhiteSpace(kullaniciId))
+            {
+                return new YorumYetkisiDto
+                {
+                    YorumYapabilir = false,
+                    Sebep = "Kullanici dogrulanamadi."
+                };
+            }
+
+            var urun = await _urunRepository.GetByIdAsync(urunId);
+            if (urun == null)
+            {
+                return new YorumYetkisiDto
+                {
+                    YorumYapabilir = false,
+                    Sebep = "Urun bulunamadi."
+                };
+            }
+
+            if (!urun.AktifMi)
+            {
+                return new YorumYetkisiDto
+                {
+                    YorumYapabilir = false,
+                    Sebep = "Pasif urune yorum yapilamaz."
+                };
+            }
+
+            if (string.Equals(urun.SaticiId, kullaniciId, StringComparison.Ordinal))
+            {
+                return new YorumYetkisiDto
+                {
+                    YorumYapabilir = false,
+                    Sebep = "Kendi urununuz icin yorum yapamazsiniz."
+                };
+            }
+
+            if (!await _talepRepository.HasAcceptedDemandForProductAsync(kullaniciId, urunId))
+            {
+                return new YorumYetkisiDto
+                {
+                    YorumYapabilir = false,
+                    Sebep = "Yorum yapabilmek icin bu urunle ilgili kabul edilmis bir talebiniz olmalidir."
+                };
+            }
+
+            return new YorumYetkisiDto
+            {
+                YorumYapabilir = true
+            };
         }
 
         public async Task<IEnumerable<YorumDto>> GetYorumlarByUrunIdAsync(int urunId)

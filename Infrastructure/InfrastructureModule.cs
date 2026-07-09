@@ -54,7 +54,6 @@ namespace Infrastructure
                 .AddDefaultTokenProviders();
 
             services.Configure<SmtpEmailOptions>(configuration.GetSection("Email:Smtp"));
-            services.Configure<TwilioSmsOptions>(configuration.GetSection("Sms:Twilio"));
             services.Configure<VerificationOptions>(configuration.GetSection("Verification"));
             services.Configure<CloudinaryOptions>(configuration.GetSection("Cloudinary"));
             services.AddSingleton<IVerificationOutbox, InMemoryVerificationOutbox>();
@@ -81,7 +80,6 @@ namespace Infrastructure
             services.AddScoped<IAuthService, AuthService>();
             // Uygulama servisleri
             services.AddScoped<IEmailSend, EmailSender>();
-            services.AddHttpClient<ISmsSender, SmsSender>();
             services.AddScoped<IUrunService, UrunService>();
             services.AddScoped<ITalepService, TalepService>();
             services.AddScoped<IDashboardService, DashboardService>();

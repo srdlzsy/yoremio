@@ -19,7 +19,7 @@ var tests = new (string Name, Action Test)[]
 {
     ("Alici kaydı geçerli model kabul edilmeli", RegisterAliciDto_Should_BeValid),
     ("Satıcı kaydı zorunlu alanları yakalamalı", RegisterSaticiDto_Should_RequireFields),
-    ("Dogrulama DTO'lari email ve kod istemeli", ConfirmVerificationDtos_Should_RequireEmailAndCode),
+    ("Email dogrulama DTO'su email ve kod istemeli", ConfirmVerificationDtos_Should_RequireEmailAndCode),
     ("Puan DTO aralık kontrolü yapmalı", PuanEkleDto_Should_ValidateRange),
     ("Ürün DTO dosya türünü doğrulamalı", UrunEkleDto_Should_RejectInvalidImageType),
     ("Rol sabitleri beklenen değerleri taşımalı", ApplicationRoles_Should_MatchExpectedValues),
@@ -109,40 +109,24 @@ static void ConfirmVerificationDtos_Should_RequireEmailAndCode()
         Code = ""
     };
 
-    var phoneDto = new ConfirmPhoneDto
-    {
-        Email = "",
-        Code = ""
-    };
-
     var emailResults = Validate(emailDto);
-    var phoneResults = Validate(phoneDto);
 
     AssertContains(emailResults, "Gecerli bir email adresi giriniz.");
     AssertContains(emailResults, "Dogrulama kodu bos olamaz.");
-    AssertContains(phoneResults, "Email bos olamaz.");
-    AssertContains(phoneResults, "Telefon dogrulama kodu bos olamaz.");
 }
 
 static void AuthController_VerificationEndpoints_Should_BeAnonymousPost()
 {
     AssertHttpMethod(typeof(AuthController), nameof(AuthController.ConfirmEmailCode), typeof(HttpPostAttribute));
-    AssertHttpMethod(typeof(AuthController), nameof(AuthController.ConfirmPhoneCode), typeof(HttpPostAttribute));
 
     var emailMethod = typeof(AuthController).GetMethod(nameof(AuthController.ConfirmEmailCode));
-    var phoneMethod = typeof(AuthController).GetMethod(nameof(AuthController.ConfirmPhoneCode));
 
     if (emailMethod?.GetCustomAttribute<AllowAnonymousAttribute>() == null)
         throw new InvalidOperationException("AuthController.ConfirmEmailCode AllowAnonymous olmalidir.");
 
-    if (phoneMethod?.GetCustomAttribute<AllowAnonymousAttribute>() == null)
-        throw new InvalidOperationException("AuthController.ConfirmPhoneCode AllowAnonymous olmalidir.");
-
     if (emailMethod?.GetParameters().SingleOrDefault()?.ParameterType != typeof(ConfirmEmailDto))
         throw new InvalidOperationException("AuthController.ConfirmEmailCode sadece ConfirmEmailDto almalidir.");
 
-    if (phoneMethod?.GetParameters().SingleOrDefault()?.ParameterType != typeof(ConfirmPhoneDto))
-        throw new InvalidOperationException("AuthController.ConfirmPhoneCode sadece ConfirmPhoneDto almalidir.");
 }
 
 static void PuanEkleDto_Should_ValidateRange()

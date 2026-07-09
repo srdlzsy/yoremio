@@ -13,10 +13,12 @@ namespace API.Controllers
     public class UrunController : ControllerBase
     {
         private readonly IUrunService _urunService;
+        private readonly IYorumServices _yorumService;
 
-        public UrunController(IUrunService urunService)
+        public UrunController(IUrunService urunService, IYorumServices yorumService)
         {
             _urunService = urunService;
+            _yorumService = yorumService;
         }
 
         [Authorize(Roles = ApplicationRoles.Satici)]
@@ -97,6 +99,20 @@ namespace API.Controllers
         }
 
         [Authorize(Roles = ApplicationRoles.Alici)]
+        [HttpGet("{urunId:int}/yorum-yetkisi")]
+        public async Task<IActionResult> GetYorumYetkisi(int urunId)
+        {
+            var kullaniciId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(kullaniciId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanici dogrulanamadi.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var yetki = await _yorumService.GetYorumYetkisiAsync(urunId, kullaniciId);
+            return Ok(ApiResponse<YorumYetkisiDto>.Ok(yetki, "Yorum yetkisi getirildi.", HttpContext.TraceIdentifier));
+        }
+
+        [Authorize(Roles = ApplicationRoles.Alici)]
         [HttpPost("{urunId:int}/favori")]
         public async Task<IActionResult> FavoriyeEkle(int urunId)
         {
@@ -151,6 +167,18 @@ namespace API.Controllers
         [Authorize(Roles = ApplicationRoles.Satici)]
         [HttpPatch("{urunId:int}/status")]
         public async Task<IActionResult> UrunDurumuGuncelle(int urunId, [FromBody] UrunDurumGuncelleDto dto)
+        {
+            return await UrunDurumuGuncelleInternal(urunId, dto);
+        }
+
+        [Authorize(Roles = ApplicationRoles.Satici)]
+        [HttpPut("{urunId:int}/status")]
+        public async Task<IActionResult> UrunDurumuPutGuncelle(int urunId, [FromBody] UrunDurumGuncelleDto dto)
+        {
+            return await UrunDurumuGuncelleInternal(urunId, dto);
+        }
+
+        private async Task<IActionResult> UrunDurumuGuncelleInternal(int urunId, UrunDurumGuncelleDto dto)
         {
             var saticiId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(saticiId))

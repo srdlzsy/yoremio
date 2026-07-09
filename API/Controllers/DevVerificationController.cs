@@ -85,7 +85,7 @@ namespace API.Controllers
 <body>
   <header>
     <h1>Yoremio Dogrulama Kutusu</h1>
-    <p>Development ortaminda mock email ve SMS mesajlari burada gorunur.</p>
+    <p>Development ortaminda mock email dogrulama mesajlari burada gorunur.</p>
   </header>
   <main>
     <div class="toolbar">
