@@ -50,7 +50,7 @@ services:
       - key: Email__Smtp__FromAddress
         sync: false
       - key: Email__Smtp__FromName
-        value: "deneme"
+        value: "Yoremio"
       - key: Cloudinary__Enabled
         sync: false
       - key: Cloudinary__CloudName

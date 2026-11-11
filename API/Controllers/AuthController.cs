@@ -5,6 +5,7 @@ using Infrastructure.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -35,6 +36,7 @@ namespace API.Controllers
             _logger = logger;
         }
 
+        [EnableRateLimiting("AuthStrict")]
         [HttpPost("register/satici")]
         public async Task<IActionResult> RegisterSatici([FromBody] RegisterSaticiDto dto)
         {
@@ -59,6 +61,7 @@ namespace API.Controllers
             return Ok(ApiResponse<object>.Ok(null, "Satici kaydi basarili.", HttpContext.TraceIdentifier));
         }
 
+        [EnableRateLimiting("AuthStrict")]
         [HttpPost("register/alici")]
         public async Task<IActionResult> RegisterAlici([FromBody] RegisterAliciDto dto)
         {
@@ -71,6 +74,7 @@ namespace API.Controllers
             return Ok(ApiResponse<object>.Ok(null, "Alici kaydi basarili.", HttpContext.TraceIdentifier));
         }
 
+        [EnableRateLimiting("AuthStrict")]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
@@ -101,6 +105,7 @@ namespace API.Controllers
             return Ok(ApiResponse<LoginResponseDto>.Ok(response, "Giris basarili.", HttpContext.TraceIdentifier));
         }
 
+        [EnableRateLimiting("AuthStrict")]
         [HttpPost("resend-verification")]
         public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationDto dto)
         {
@@ -117,6 +122,7 @@ namespace API.Controllers
         }
 
         [AllowAnonymous]
+        [EnableRateLimiting("AuthStrict")]
         [HttpPost("confirm-email")]
         public async Task<IActionResult> ConfirmEmailCode([FromBody] ConfirmEmailDto dto)
         {
@@ -163,6 +169,7 @@ namespace API.Controllers
         }
 
         [AllowAnonymous]
+        [EnableRateLimiting("AuthStrict")]
         [HttpGet("confirm-email")]
         public async Task<IActionResult> ConfirmEmail([FromQuery] string userId, [FromQuery] string token)
         {

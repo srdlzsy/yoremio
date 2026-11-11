@@ -2,6 +2,7 @@ using Application.DTOs;
 using Application.Interfaces;
 using Domain.Constants;
 using Domain.Entities;
+using Domain.Interfaces;
 using Infrastructure.Extensions;
 using Infrastructure.Options;
 using Microsoft.AspNetCore.Identity;
@@ -17,6 +18,7 @@ namespace Infrastructure.Services
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly ISaticiProfiliRepository _saticiProfiliRepository;
         private readonly IConfiguration _configuration;
         private readonly IEmailSend _emailSender;
         private readonly VerificationOptions _verificationOptions;
@@ -25,6 +27,7 @@ namespace Infrastructure.Services
         public AuthService(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
+            ISaticiProfiliRepository saticiProfiliRepository,
             IConfiguration configuration,
             IEmailSend emailSender,
             IOptions<VerificationOptions> verificationOptions,
@@ -32,6 +35,7 @@ namespace Infrastructure.Services
         {
             _userManager = userManager;
             _signInManager = signInManager;
+            _saticiProfiliRepository = saticiProfiliRepository;
             _configuration = configuration;
             _emailSender = emailSender;
             _verificationOptions = verificationOptions.Value;
@@ -40,22 +44,31 @@ namespace Infrastructure.Services
 
         public async Task<(bool Succeeded, string? Error)> RegisterSaticiAsync(RegisterSaticiDto dto)
         {
+            var normalizedEmail = dto.Email.Trim();
+            var normalizedVergiNo = dto.VergiNo.Trim();
+
+            var existingProfiles = await _saticiProfiliRepository.FindAsync(s => s.VergiNo == normalizedVergiNo);
+            if (existingProfiles.Any())
+            {
+                return (false, "Bu vergi numarasi zaten kayitli.");
+            }
+
             var requireEmailConfirmation = _verificationOptions.RequireConfirmedEmailForSellerLogin;
 
             var user = new ApplicationUser
             {
-                UserName = dto.Email,
-                Email = dto.Email,
-                PhoneNumber = dto.PhoneNumber,
+                UserName = normalizedEmail,
+                Email = normalizedEmail,
+                PhoneNumber = dto.PhoneNumber.Trim(),
                 EmailConfirmed = !requireEmailConfirmation,
                 PhoneNumberConfirmed = true,
                 SaticiProfili = new SaticiProfili
                 {
-                    MagazaAdi = dto.MagazaAdi,
-                    VergiNo = dto.VergiNo,
-                    Adres = dto.Adres,
-                    Sehir = dto.Sehir,
-                    Ilce = dto.Ilce,
+                    MagazaAdi = dto.MagazaAdi.Trim(),
+                    VergiNo = normalizedVergiNo,
+                    Adres = string.IsNullOrWhiteSpace(dto.Adres) ? null : dto.Adres.Trim(),
+                    Sehir = string.IsNullOrWhiteSpace(dto.Sehir) ? null : dto.Sehir.Trim(),
+                    Ilce = string.IsNullOrWhiteSpace(dto.Ilce) ? null : dto.Ilce.Trim(),
                     AktifMi = !requireEmailConfirmation
                 },
                 AliciProfili = new AliciProfili
@@ -106,10 +119,15 @@ namespace Infrastructure.Services
 
         public async Task<(bool Succeeded, string? Error)> RegisterAliciAsync(RegisterAliciDto dto)
         {
+            var normalizedEmail = dto.Email.Trim();
             var user = new ApplicationUser
             {
-                UserName = dto.Email,
-                Email = dto.Email
+                UserName = normalizedEmail,
+                Email = normalizedEmail,
+                AliciProfili = new AliciProfili
+                {
+                    AktifMi = true
+                }
             };
 
             var result = await _userManager.CreateAsync(user, dto.Password);
@@ -130,8 +148,24 @@ namespace Infrastructure.Services
 
         public async Task<(bool Succeeded, string? Token, string? Error)> LoginAsync(LoginDto dto)
         {
-            var user = await _userManager.FindByEmailAsync(dto.Email);
-            if (user == null || !await _userManager.CheckPasswordAsync(user, dto.Password))
+            var user = await _userManager.FindByEmailAsync(dto.Email.Trim());
+            if (user == null)
+            {
+                return (false, null, "Gecersiz email veya sifre.");
+            }
+
+            if (await _userManager.IsLockedOutAsync(user))
+            {
+                return (false, null, "Cok fazla basarisiz giris denemesi. Hesabiniz gecici olarak kilitlendi.");
+            }
+
+            var signInResult = await _signInManager.CheckPasswordSignInAsync(user, dto.Password, lockoutOnFailure: true);
+            if (signInResult.IsLockedOut)
+            {
+                return (false, null, "Cok fazla basarisiz giris denemesi. Hesabiniz gecici olarak kilitlendi.");
+            }
+
+            if (!signInResult.Succeeded)
             {
                 return (false, null, "Gecersiz email veya sifre.");
             }
@@ -196,8 +230,16 @@ namespace Infrastructure.Services
                 return false;
             }
 
-            var decodedBytes = WebEncoders.Base64UrlDecode(token);
-            var decodedToken = Encoding.UTF8.GetString(decodedBytes);
+            string decodedToken;
+            try
+            {
+                var decodedBytes = WebEncoders.Base64UrlDecode(token);
+                decodedToken = Encoding.UTF8.GetString(decodedBytes);
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
 
             var result = await _userManager.ConfirmEmailAsync(user, decodedToken);
             return result.Succeeded;
@@ -216,6 +258,11 @@ namespace Infrastructure.Services
                 return (true, user.Id);
             }
 
+            if (await _userManager.IsLockedOutAsync(user))
+            {
+                return (false, user.Id);
+            }
+
             var isValid = await _userManager.VerifyUserTokenAsync(
                 user,
                 TokenOptions.DefaultEmailProvider,
@@ -224,9 +271,11 @@ namespace Infrastructure.Services
 
             if (!isValid)
             {
+                await _userManager.AccessFailedAsync(user);
                 return (false, user.Id);
             }
 
+            await _userManager.ResetAccessFailedCountAsync(user);
             user.EmailConfirmed = true;
             var result = await _userManager.UpdateAsync(user);
             return (result.Succeeded, user.Id);

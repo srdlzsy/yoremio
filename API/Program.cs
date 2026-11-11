@@ -1,3 +1,4 @@
+using API.Health;
 using API.Middlewares;
 using API.Options;
 using Application;
@@ -32,7 +33,8 @@ builder.Logging.AddSimpleConsole(options =>
 });
 
 builder.Services.AddProblemDetails();
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database", tags: new[] { "ready" });
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpLogging(options =>
 {
@@ -147,6 +149,8 @@ builder.Services.AddCors(options =>
 
 var rateLimitPermitLimit = configuration.GetValue<int?>("RateLimiting:PermitLimit") ?? 300;
 var rateLimitWindowSeconds = configuration.GetValue<int?>("RateLimiting:WindowSeconds") ?? 60;
+var authRateLimitPermitLimit = configuration.GetValue<int?>("RateLimiting:AuthPermitLimit") ?? 15;
+var authRateLimitWindowSeconds = configuration.GetValue<int?>("RateLimiting:AuthWindowSeconds") ?? 60;
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -161,6 +165,20 @@ builder.Services.AddRateLimiter(options =>
         {
             PermitLimit = rateLimitPermitLimit,
             Window = TimeSpan.FromSeconds(rateLimitWindowSeconds),
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true
+        });
+    });
+
+    options.AddPolicy("AuthStrict", context =>
+    {
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+        var path = context.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
+        return RateLimitPartition.GetFixedWindowLimiter($"{ip}:{path}", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = authRateLimitPermitLimit,
+            Window = TimeSpan.FromSeconds(authRateLimitWindowSeconds),
             QueueLimit = 0,
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
             AutoReplenishment = true
@@ -274,7 +292,14 @@ app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false
+});
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
 app.MapHub<ChatHub>("/chathub").RequireAuthorization();
 app.MapControllers();
 
