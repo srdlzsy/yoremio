@@ -64,9 +64,9 @@ Frontend tarafinda genel kural:
 | Rol | Yapabilir | Yapamaz |
 | --- | --- | --- |
 | Anonim | Urun listeleme, kategori listeleme, satici guven skoru, one cikan saticilar, urun yorumlari. | Talep, favori, chat, yorum/puan, profil islemleri. |
-| `ALICI` | Favori, talep acma, teklif kabul, chat, bildirim, anlasma sonrasi yorum/puan. | Urun ekleme, satici profili yonetme, kategori yazma. |
-| `SATICI` | Profil yonetimi, urun CRUD, medya silme, urun aktif/pasif, gelen taleplere teklif, chat. | Kategori CRUD, baska saticinin urununu yonetme. |
-| `ADMIN` | Kategori CRUD, admin dashboard. | Satici yerine urun sahipligi islemleri icin ayri endpoint yoktur. |
+| `ALICI` | Profil/konum guncelleme, favori, talep acma, teklif kabul, chat, bildirim, anlasma sonrasi yorum/puan. | Urun ekleme, satici profili yonetme, kategori yazma. |
+| `SATICI` | Profil/kapak resmi yonetimi, urun CRUD, medya silme, urun aktif/pasif, gelen taleplere teklif, chat. | Kategori CRUD, baska saticinin urununu yonetme. |
+| `ADMIN` | Kategori CRUD, admin dashboard, satici dogrulama onayi, kullanici listeleme, urun ve yorum moderasyonu. | Satici yerine urun sahipligi islemleri icin ayri endpoint yoktur. |
 
 Not: Satici kaydinda kullanici ayni anda `SATICI` ve `ALICI` rollerini alir. Boylece satici paneli olan kullanici platformda alici davranislari da gosterebilir.
 
@@ -252,6 +252,8 @@ Yorum yetkisi response mantigi:
 ```json
 {
   "yorumYapabilir": false,
+  "puanlayabilir": false,
+  "mevcutPuan": null,
   "sebep": "Yorum yapabilmek icin bu urunle ilgili kabul edilmis bir talebiniz olmalidir."
 }
 ```
@@ -266,7 +268,7 @@ Guven skoru:
 Chat iki sekilde calisir:
 
 1. REST endpointleriyle gecmis, gonderim ve okundu bilgisi.
-2. SignalR ile canli mesajlasma.
+2. SignalR ile canli mesajlasma ve anlik bildirim akisi.
 
 REST endpointleri:
 
@@ -281,13 +283,17 @@ SignalR:
 
 ```txt
 /chathub
+  -> ReceiveMessageV2 / MessageSentV2 (canli chat)
+  -> NotificationReceived (yeni bildirim + okunmamisSayisi)
+  -> UnreadNotificationCountUpdated (guncel okunmamis sayaci)
 ```
 
 Bildirimler su olaylarda kullanilir:
 
-- Talep acilinca saticiya bildirim.
-- Teklif verilince aliciya bildirim.
-- Teklif kabul edilince saticiya bildirim.
+- Talep acilinca saticiya bildirim (`TALEP`).
+- Teklif verilince aliciya bildirim (`TEKLIF`).
+- Teklif kabul edilince saticiya bildirim (`TEKLIF`).
+- Admin urun/yorum/satici moderasyon karari alinca ilgili kullaniciya bildirim (`SISTEM`).
 - Chat ve panel badge'leri icin okunmamis sayilar.
 
 ## 13. Destek Talebi Akisi
@@ -397,9 +403,22 @@ Satici paneli:
 ```txt
 GET /api/Dashboard/satici
 GET /api/Profil/satici
+PUT /api/Profil/satici (aciklama + kapakResim multipart)
 GET /api/Urun/urunlerim
-GET /api/Talep/satici
+GET /api/Talep/satici?durum=&page=&pageSize=
 GET /api/Chat/conversations
+```
+
+Admin paneli:
+
+```txt
+GET /api/Dashboard/admin
+GET /api/Admin/kullanicilar
+PATCH /api/Admin/saticilar/{saticiId}/dogrulama
+GET /api/Admin/urunler
+PATCH /api/Admin/urunler/{urunId}/durum
+GET /api/Admin/yorumlar
+PATCH /api/Admin/yorumlar/{yorumId}/durum
 ```
 
 Alici urun detayi:

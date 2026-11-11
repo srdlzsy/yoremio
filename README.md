@@ -35,10 +35,11 @@ Not: Platform odeme ve kargo sureci yonetmez; iletisim ve anlasma kaydi tutar.
 - Kategori ve urun yonetimi
 - Yorum, puan ve favori akislari
 - Onerilen urunler
-- Satici guven skoru ve dogrulanmis satici rozeti
-- Sehir/ilce bazli filtreleme
-- Talep/teklif akisi
-- Kalici mesaj gecmisi ve okundu bilgisi olan SignalR tabanli canli mesajlasma (`/chathub`)
+- Satici guven skoru ve dogrulanmis satici rozeti (admin manuel onay/ret destekli)
+- Sehir/ilce bazli dinamik konum kesfi ve akilli oneriler
+- Talep/teklif akisi (durum ve sayfalama destekli)
+- Kalici mesaj gecmisi, okundu bilgisi ve canli bildirimler (`NotificationReceived`) sunan SignalR (`/chathub`)
+- Admin dogrulama, kullanici listeleme ve urun/yorum moderasyonu (`/api/Admin/...`)
 
 ## Teknoloji Yigini
 
@@ -195,11 +196,23 @@ Bildirim:
 
 Profil:
 
+- `GET /api/Profil/alici`
+- `PUT /api/Profil/alici`
 - `GET /api/Profil/satici`
 - `PUT /api/Profil/satici`
 - `GET /api/Profil/satici/{saticiId}`
 - `GET /api/Profil/satici/{saticiId}/guven-skoru`
 - `GET /api/Profil/saticilar/one-cikan`
+
+Admin:
+
+- `GET /api/Admin/kullanicilar`
+- `PATCH /api/Admin/saticilar/{saticiId}/dogrulama`
+- `PATCH /api/Admin/saticilar/{saticiId}/durum`
+- `GET /api/Admin/urunler`
+- `PATCH /api/Admin/urunler/{urunId}/durum`
+- `GET /api/Admin/yorumlar`
+- `PATCH /api/Admin/yorumlar/{yorumId}/durum`
 
 ## Konfigurasyon Notlari
 

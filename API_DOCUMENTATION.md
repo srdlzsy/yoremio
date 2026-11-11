@@ -77,7 +77,15 @@ Response `data`:
     {
       "id": 1,
       "adi": "Bal",
-      "aciklama": "Yerel bal urunleri"
+      "aciklama": "Yerel bal urunleri",
+      "urunSayisi": 4
+    }
+  ],
+  "cities": ["Ardahan", "Kars"],
+  "locations": [
+    {
+      "sehir": "Ardahan",
+      "ilceler": ["Gole", "Merkez", "Posof"]
     }
   ],
   "productSorts": [
@@ -593,7 +601,11 @@ Body:
 ```json
 {
   "email": "buyer@example.com",
-  "password": "Secret123!"
+  "password": "Secret123!",
+  "userName": "alici_ahmet",
+  "sehir": "Ardahan",
+  "ilce": "Merkez",
+  "adres": "Cumhuriyet Mah."
 }
 ```
 
@@ -601,6 +613,8 @@ Validasyon:
 
 - `email`: zorunlu, geçerli email
 - `password`: zorunlu, minimum 8 karakter; Identity policy büyük/küçük harf, rakam, özel karakter ister.
+- `userName`: opsiyonel (`min 3`, `max 50`, boş bırakılırsa `email` kullanılır).
+- `sehir`, `ilce`, `adres`: opsiyonel; verilirse alıcı profiline kaydedilir ve kişiselleştirilmiş önerilerde kullanılır.
 
 Response:
 
@@ -615,7 +629,7 @@ Response:
 
 Not:
 
-- Alıcı profil yönetimi için ayrı public controller yoktur; UI şu an alıcı bilgisi için `GET /api/Auth/me`, favoriler, talepler ve chat verilerini kullanır.
+- Alıcı kayıt sonrası profilini `GET /api/Profil/alici` ve `PUT /api/Profil/alici` uçlarıyla görüntüleyip güncelleyebilir.
 
 ### 6.3 Login
 
@@ -665,7 +679,10 @@ Response `data`:
   "phoneNumber": "+905551112233",
   "role": "SATICI",
   "roles": ["SATICI", "ALICI"],
-  "emailConfirmed": true
+  "emailConfirmed": true,
+  "sehir": "Ardahan",
+  "ilce": "Posof",
+  "magazaAdi": "Posof Organik"
 }
 ```
 
@@ -869,9 +886,12 @@ Response `data`:
   "adres": "Posof Yayla Yolu 14",
   "sehir": "Ardahan",
   "ilce": "Posof",
+  "aciklama": "Ailemiz 3 kusaktir Posof yaylalarinda uretim yapmaktadir.",
+  "kapakResimUrl": "/uploads/saticilar/seller-user-id/kapak.jpg",
   "kayitTarihi": "2025-09-03T09:00:00Z",
   "aktifMi": true,
   "dogrulanmisSatici": true,
+  "adminDogrulamaDurumu": null,
   "email": "mehmet@demo.yoremio.local",
   "userName": "mehmet@demo.yoremio.local",
   "phoneNumber": "+905301000002"
@@ -880,8 +900,8 @@ Response `data`:
 
 UI alanları:
 
-- Mağaza adı, vergi no, adres, şehir, ilçe
-- Aktif/doğrulanmış rozetleri
+- Mağaza adı, vergi no, adres, şehir, ilçe, mağaza açıklaması/hikayesi, özel kapak görseli
+- Aktif/doğrulanmış rozetleri (`adminDogrulamaDurumu`: `true`/`false`/`null`)
 - İletişim bilgileri
 
 ### 7.2 Satıcı Profil Güncelle
@@ -890,22 +910,15 @@ UI alanları:
 
 Auth: `SATICI`
 
-Body:
+Content-Type: Hem `application/json` hem de kapak fotoğrafı yüklenecekse `multipart/form-data` desteklenir.
 
-```json
-{
-  "magazaAdi": "Yeni Mağaza Adı",
-  "adres": "Yeni adres",
-  "sehir": "Ardahan",
-  "ilce": "Merkez",
-  "phoneNumber": "+905301000099"
-}
-```
-
-Validasyon:
+Form / JSON alanları:
 
 - `magazaAdi`: opsiyonel, gönderilirse minimum 3 karakter
-- `phoneNumber`: opsiyonel, phone format validasyonu
+- `adres`, `sehir`, `ilce`: opsiyonel
+- `aciklama`: opsiyonel, max 1000 karakter (mağaza hikayesi)
+- `phoneNumber`: opsiyonel, telefon format validasyonu
+- `kapakResim`: opsiyonel (`multipart/form-data` file, max 5 MB, geçerli `image/` dosya imzası zorunlu)
 
 Response:
 
@@ -995,6 +1008,7 @@ Response örneği:
   "data": {
     "kullaniciId": "seller-user-id",
     "magazaAdi": "Posof Organik",
+    "aciklama": "Ardahan Posof yaylalarından katkısız bal ve süt ürünleri.",
     "sehir": "Ardahan",
     "ilce": "Posof",
     "dogrulanmisSatici": true,
@@ -1003,12 +1017,59 @@ Response örneği:
     "toplamYorum": 34,
     "toplamFavori": 89,
     "guvenSkoru": 92.5,
-    "kapakResimUrl": "/uploads/urunler/posof-bal.jpg",
+    "kapakResimUrl": "/uploads/saticilar/posof-kapak.jpg",
     "vitrinUrunId": 42
   },
   "traceId": "..."
 }
 ```
+
+### 7.6 Alıcı Profilim ve Güncelleme
+
+`GET /api/Profil/alici`
+
+Auth: `ALICI`
+
+Not:
+
+- Eski kayıtlı alıcıların `AliciProfili` satırı henüz yoksa backend otomatik varsayılan satır oluşturup döner.
+
+Response `data`:
+
+```json
+{
+  "kullaniciId": "buyer-user-id",
+  "userName": "alici_ayse",
+  "email": "alici@example.com",
+  "phoneNumber": "05551112233",
+  "sehir": "İstanbul",
+  "ilce": "Kadıköy",
+  "adres": "Moda Cad. No: 12",
+  "favoriKategori": "Kahvaltılık"
+}
+```
+
+`PUT /api/Profil/alici`
+
+Auth: `ALICI`
+
+Request:
+
+```json
+{
+  "userName": "alici_ayse",
+  "phoneNumber": "05551112233",
+  "sehir": "İstanbul",
+  "ilce": "Kadıköy",
+  "adres": "Moda Cad. No: 12",
+  "favoriKategori": "Kahvaltılık"
+}
+```
+
+Not:
+
+- `userName` güncellendiğinde ürün yorumları, puan listeleri (`PuanDto.kullaniciAdi`) ve taleplerdeki `aliciAdi` görünen adı otomatik güncellenir.
+- `sehir` ve `ilce` bilgisi `GET /api/Urun/onerilen` akışındaki kişiselleştirilmiş öneri sıralamasında önceliklendirme için kullanılır.
 
 ## 8. Kategori API
 
@@ -1018,9 +1079,12 @@ Kategori modeli:
 {
   "id": 1,
   "adi": "Kahvaltılık",
-  "aciklama": "Bal, reçel, yumurta ve kahvaltılık ürünler"
+  "aciklama": "Bal, reçel, yumurta ve kahvaltılık ürünler",
+  "urunSayisi": 8
 }
 ```
+
+Not: `urunSayisi`, ilgili kategorideki aktif (`AktifMi = true`) ürün sayısını verir.
 
 ### 8.1 Kategori Listesi
 
@@ -1457,6 +1521,7 @@ Response `data`:
     "id": 1,
     "urunId": 10,
     "kullaniciId": "buyer-user-id",
+    "kullaniciAdi": "ayse_alici",
     "puanDegeri": 5,
     "puanTarihi": "2026-03-05T08:00:00Z"
   }
@@ -1571,14 +1636,17 @@ Response `data`:
 ```json
 {
   "yorumYapabilir": false,
+  "puanlayabilir": false,
+  "mevcutPuan": null,
   "sebep": "Yorum yapabilmek icin bu urunle ilgili kabul edilmis bir talebiniz olmalidir."
 }
 ```
 
 Not:
 
-- UI yorum formunu acmadan once bu endpoint ile formu aktif/pasif gosterebilir.
-- `yorumYapabilir=true` ise `sebep` bos donebilir.
+- UI yorum formunu açmadan önce bu endpoint ile hem yorum (`yorumYapabilir`) hem puanlama (`puanlayabilir`, `mevcutPuan`) butonlarını yönetebilir.
+- `yorumYapabilir=true` ise `sebep` boş dönebilir.
+- Kullanıcının ürün için kabul edilmiş bir talebi varsa `puanlayabilir=true` döner; daha önce puan vermişse mevcut puanı `mevcutPuan` alanında gelir.
 
 ## 12. Talep API
 
@@ -1588,6 +1656,7 @@ Not:
 {
   "id": 1,
   "aliciId": "buyer-user-id",
+  "aliciAdi": "alici_ayse",
   "urunId": 10,
   "urunAdi": "Yayla Balı",
   "urunResimUrl": "/demo-media/yayla-bali/resimler/1.jpg",
@@ -1600,6 +1669,7 @@ Not:
   "not": "Toplu alım için fiyat rica ederim.",
   "durum": "ACIK",
   "olusturmaTarihi": "2026-03-10T08:00:00Z",
+  "guncellemeTarihi": "2026-03-10T14:00:00Z",
   "teklifler": [
     {
       "id": 5,
@@ -1644,26 +1714,35 @@ Response:
 
 ### 12.3 Alıcı Taleplerim
 
-`GET /api/Talep/benim`
+`GET /api/Talep/benim?durum=ACIK&page=1&pageSize=20`
 
 Auth: `ALICI`
 
+Query parametreleri (opsiyonel):
+
+- `durum`: `ACIK`, `BEKLEMEDE`, `KABUL_EDILDI`, `REDDEDILDI`
+- `page` (1+): Verilirse sayfalı yanıt döner
+- `pageSize` (1..100): Sayfa boyutu
+
 Response:
 
-- `data`: `TalepDto[]`
+- `page` veya `pageSize` verilmezse: `data`: `TalepDto[]` (geriye dönük uyumlu)
+- `page` veya `pageSize` verilirse: `data`: `PagedResult<TalepDto>` (`items`, `totalCount`, `page`, `pageSize`, `totalPages`)
 
 UI kullanımı:
 
-- Taleplerim listesi
-- Talep kartinda urun gorseli, fiyat, satici magazasi ve lokasyon bilgisi
+- Taleplerim listesi ve durum sekmeleri (`durum` filtresi)
+- Talep kartında ürün görseli, fiyat, satıcı mağazası ve lokasyon bilgisi
 - Talep detayında teklifler
 - Teklif kabul aksiyonu
 
 ### 12.4 Satıcıya Gelen Talepler
 
-`GET /api/Talep/satici`
+`GET /api/Talep/satici?durum=ACIK&page=1&pageSize=20`
 
 Auth: `SATICI`
+
+Query parametreleri (opsiyonel): `durum`, `page`, `pageSize`
 
 Mantık:
 
@@ -1671,7 +1750,8 @@ Mantık:
 
 Response:
 
-- `data`: `TalepDto[]`
+- `page` veya `pageSize` verilmezse: `data`: `TalepDto[]` (geriye dönük uyumlu)
+- `page` veya `pageSize` verilirse: `data`: `PagedResult<TalepDto>`
 
 ### 12.5 Teklif Ver / Teklifi Güncelle
 
@@ -1971,7 +2051,8 @@ Response:
         "aksiyonUrl": "/talepler/1",
         "olusturmaTarihi": "2026-07-08T13:20:00Z",
         "okunmaTarihi": null,
-        "okunduMu": false
+        "okunduMu": false,
+        "okunmamisSayisi": 1
       }
     ],
     "page": 1,
@@ -1982,6 +2063,8 @@ Response:
   }
 }
 ```
+
+Not: Yeni bildirim üretildiğinde (`TALEP`, `TEKLIF`, `MESAJ`, `DESTEK`, `SISTEM`) `/chathub` üzerinden `NotificationReceived` ve `UnreadNotificationCountUpdated` event'leri anlık gönderilir.
 
 Ek endpointler:
 
@@ -2094,6 +2177,18 @@ UI gorevleri:
 - Kullanici/satici/urun/moderasyon ekranlarina hizli link kartlari.
 - Operasyonel bos durum ve uyari kararlarinda sayac kaynagi.
 
+### 14.4 Admin Doğrulama & Moderasyon API
+
+Tüm `/api/Admin/...` uçları yalnızca `ADMIN` rolü ile erişilebilir.
+
+- `GET /api/Admin/kullanicilar?rol=SATICI&search=posof&page=1&pageSize=20`: Sayfalı kullanıcı listesi (`roller`, `saticiDogrulandi`, `saticiAktifMi`, `urunSayisi`).
+- `PATCH /api/Admin/saticilar/{saticiId}/dogrulama`: Satıcı manuel doğrulama kararını set eder. Body: `{ "dogrulandi": true | false | null, "aciklama": "..." }`. (`null` verildiğinde profil tamamlanma kontrolüne geri döner.)
+- `PATCH /api/Admin/saticilar/{saticiId}/durum`: Satıcıyı aktif/pasif yapar ve ilgili satıcıya bildirim gönderir. Body: `{ "aktifMi": false, "aciklama": "..." }`.
+- `GET /api/Admin/urunler?aktifMi=&saticiId=&search=&page=1&pageSize=20`: Tüm aktif/pasif ürünleri admin moderasyonu için sayfalı döner.
+- `PATCH /api/Admin/urunler/{urunId}/durum`: Uygunsuz ürünü pasife/aktife alır ve satıcıya bildirim gönderir. Body: `{ "aktifMi": false, "aciklama": "..." }`.
+- `GET /api/Admin/yorumlar?aktifMi=&urunId=&search=&page=1&pageSize=20`: Tüm aktif/gizli yorumları listeler.
+- `PATCH /api/Admin/yorumlar/{yorumId}/durum`: Uygunsuz yorumu soft-hide (`aktifMi: false`) yapar veya yeniden yayınlar; sahibine bildirim gönderir. Body: `{ "aktifMi": false, "aciklama": "..." }`.
+
 ## 15. SignalR Chat Hub
 
 Hub URL:
@@ -2144,6 +2239,8 @@ Server -> Client eventleri:
 | `ConversationRead` | `otherUserId`, `markedCount`, `readAtUtc` | Caller'ın okundu işaretleme sonucu. |
 | `MessagesRead` | `readerUserId`, `readAtUtc` | Karşı taraf mesajlarınızı okudu. |
 | `Typing` | `fromUserId` | Karşı kullanıcı yazıyor. |
+| `NotificationReceived` | `BildirimDto` | Yeni bildirim oluştuğunda (`TALEP`, `TEKLIF`, `MESAJ`, `SISTEM`, `DESTEK`) alıcıya canlı payload (`okunmamisSayisi` dahil) gönderilir. |
+| `UnreadNotificationCountUpdated` | `okunmamisSayisi` (`number`) | Okundu işaretleme veya yeni bildirim sonrası güncel okunmamış bildirim sayacı gönderilir. |
 
 Önerilen frontend event setup:
 
@@ -2162,6 +2259,14 @@ connection.on("MessagesRead", (readerUserId, readAtUtc) => {
 
 connection.on("Typing", (fromUserId) => {
   // Kısa süreli typing indicator göster.
+});
+
+connection.on("NotificationReceived", (bildirim) => {
+  // Bildirim zili sayacını bildirim.okunmamisSayisi ile güncelle ve listeye ekle.
+});
+
+connection.on("UnreadNotificationCountUpdated", (count) => {
+  // Header bildirim rozetini anlık güncelle.
 });
 ```
 
@@ -2706,11 +2811,25 @@ Auth ek endpoint:
 
 | Method | Endpoint | Auth | Rol | Açıklama |
 | --- | --- | --- | --- | --- |
+| `GET` | `/api/Profil/alici` | Evet | `ALICI` | Alıcı profilim |
+| `PUT` | `/api/Profil/alici` | Evet | `ALICI` | Alıcı profil güncelle (konum + kullanıcı adı) |
 | `GET` | `/api/Profil/satici` | Evet | `SATICI` | Satıcı profilim |
-| `PUT` | `/api/Profil/satici` | Evet | `SATICI` | Satıcı profil güncelle |
+| `PUT` | `/api/Profil/satici` | Evet | `SATICI` | Satıcı profil güncelle (JSON / multipart `kapakResim`) |
 | `GET` | `/api/Profil/saticilar/one-cikan` | Hayir | - | Ana sayfa icin one cikan saticilar |
 | `GET` | `/api/Profil/satici/{saticiId}` | Hayır | - | Public satıcı vitrin özeti |
 | `GET` | `/api/Profil/satici/{saticiId}/guven-skoru` | Hayır | - | Public satıcı güven skoru |
+
+### Admin
+
+| Method | Endpoint | Auth | Rol | Açıklama |
+| --- | --- | --- | --- | --- |
+| `GET` | `/api/Admin/kullanicilar` | Evet | `ADMIN` | Kullanıcı listesi (rol, arama, sayfalama) |
+| `PATCH` | `/api/Admin/saticilar/{saticiId}/dogrulama` | Evet | `ADMIN` | Satıcı doğrulama rozeti (`true`/`false`/`null`) |
+| `PATCH` | `/api/Admin/saticilar/{saticiId}/durum` | Evet | `ADMIN` | Satıcıyı aktif/pasif yap |
+| `GET` | `/api/Admin/urunler` | Evet | `ADMIN` | Moderasyon ürün listesi |
+| `PATCH` | `/api/Admin/urunler/{urunId}/durum` | Evet | `ADMIN` | Ürünü aktif/pasif yap |
+| `GET` | `/api/Admin/yorumlar` | Evet | `ADMIN` | Moderasyon yorum listesi |
+| `PATCH` | `/api/Admin/yorumlar/{yorumId}/durum` | Evet | `ADMIN` | Yorumu görünür/gizli yap |
 
 ### Kategori
 
@@ -2765,8 +2884,8 @@ Auth ek endpoint:
 | --- | --- | --- | --- | --- |
 | `POST` | `/api/Talep` | Evet | `ALICI` | Talep oluştur |
 | `GET` | `/api/Talep/{talepId}` | Evet | `ALICI`/`SATICI` | Talep detayı (taraflara özel) |
-| `GET` | `/api/Talep/benim` | Evet | `ALICI` | Alıcı talepleri |
-| `GET` | `/api/Talep/satici` | Evet | `SATICI` | Satıcıya gelen talepler |
+| `GET` | `/api/Talep/benim` | Evet | `ALICI` | Alıcı talepleri (`?durum=&page=&pageSize=`) |
+| `GET` | `/api/Talep/satici` | Evet | `SATICI` | Satıcıya gelen talepler (`?durum=&page=&pageSize=`) |
 | `POST` | `/api/Talep/{talepId}/teklif` | Evet | `SATICI` | Teklif ver/güncelle |
 | `POST` | `/api/Talep/teklif/{teklifId}/kabul` | Evet | `ALICI` | Teklif kabul |
 | `POST` | `/api/Talep/teklif/{teklifId}/red` | Evet | `ALICI` | Teklif reddet |
