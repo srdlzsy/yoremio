@@ -14,7 +14,9 @@ Desteklenen alanlar:
 - Fiyat filtresi: `minFiyat`, `maxFiyat`
 - Stok filtresi: `sadeceStoktaOlanlar`
 - Puan filtresi: `minOrtalamaPuan`
+- Dogrulanmis satici filtresi: `sadeceDogrulanmisSatici`
 - Siralama: `sort`
+- Public satici vitrin ozeti: `GET /api/Profil/satici/{saticiId}`
 - One cikan saticilar: `GET /api/Profil/saticilar/one-cikan`
 - Urun karti gorseli: `urun.resimler[0].url`
 - Satici rozetleri: `saticiDogrulanmis`, `saticiMagazaAdi`, `saticiSehir`, `saticiIlce`
@@ -47,8 +49,9 @@ Desteklenen alanlar:
 - Onerilen urunler: `GET /api/Urun/onerilen`
 - Favoriler: `GET /api/Urun/favorilerim`
 - Taleplerim: `GET /api/Talep/benim`
+- Talep detay: `GET /api/Talep/{talepId}`
 - Talep karti urun/satici gorseli: `urunResimUrl`, `urunAdi`, `urunFiyat`, `saticiMagazaAdi`, `saticiSehir`, `saticiIlce`
-- Teklif kabul: `POST /api/Talep/teklif/{teklifId}/kabul`
+- Teklif kabul/red ve talep iptal: `POST /api/Talep/teklif/{teklifId}/kabul`, `POST /api/Talep/teklif/{teklifId}/red`, `POST /api/Talep/{talepId}/iptal`
 - Mesajlar: `GET /api/Chat/conversations`, `GET /api/Chat/messages/{otherUserId}`
 - Puan/yorum: sadece anlasilmis talep sonrasi `POST /api/Puan/puan-ekle`, `POST /api/Yorum`
 

@@ -170,10 +170,13 @@ Urun:
 Talep:
 
 - `POST /api/Talep`
+- `GET /api/Talep/{talepId}`
 - `GET /api/Talep/benim`
 - `GET /api/Talep/satici`
 - `POST /api/Talep/{talepId}/teklif`
 - `POST /api/Talep/teklif/{teklifId}/kabul`
+- `POST /api/Talep/teklif/{teklifId}/red`
+- `POST /api/Talep/{talepId}/iptal`
 
 Chat:
 
@@ -194,7 +197,9 @@ Profil:
 
 - `GET /api/Profil/satici`
 - `PUT /api/Profil/satici`
+- `GET /api/Profil/satici/{saticiId}`
 - `GET /api/Profil/satici/{saticiId}/guven-skoru`
+- `GET /api/Profil/saticilar/one-cikan`
 
 ## Konfigurasyon Notlari
 
@@ -203,6 +208,8 @@ Profil:
 - `Verification:PublicBaseUrl` ve `Email:Smtp` ayarlari satici email dogrulama akisinda kullanilir.
 - `Startup:ApplyMigrations` ve `Startup:SeedSampleData` bos/null birakilirsa sadece Development ortaminda otomatik calisir.
 - `RateLimiting:PermitLimit` ve `RateLimiting:WindowSeconds` global API rate limit davranisini belirler.
+- `RateLimiting:AuthPermitLimit` (varsayilan `15`) ve `RateLimiting:AuthWindowSeconds` (varsayilan `60`) auth endpointleri (`AuthStrict` politikasi) icin sıkı rate limit ayarlar.
+- Health check uclari: `/health` (uygulama liveness) ve `/health/ready` (PostgreSQL baglanti readiness kontrolu).
 - `Cloudinary:Enabled=true` verilirse yeni urun medya uploadlari Cloudinary CDN'e yuklenir. Gerekli ayarlar: `Cloudinary:CloudName`, `Cloudinary:ApiKey`, `Cloudinary:ApiSecret`, `Cloudinary:UploadFolder`.
 
 ### Local Production Ayarlari
@@ -253,6 +260,8 @@ Deploy oncesi Render dashboard'da `Email__Smtp__ApiKey`, `Email__Smtp__FromAddre
 ## Dokumantasyon
 
 Detayli endpoint dokumani: `API_DOCUMENTATION.md`
+
+Genel proje akis ve is mantigi: `PROJE_AKIS_MANTIGI.md`
 
 ## Lisans
 

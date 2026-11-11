@@ -5,6 +5,7 @@ using Infrastructure.Hubs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Text;
@@ -35,7 +36,9 @@ var tests = new (string Name, Action Test)[]
     ("ChatHub iki parametreli güvenli SendMessage metodu sunmalı", ChatHub_Should_ExposeSecureSendMethod),
     ("ChatHub okundu bilgisini desteklemeli", ChatHub_Should_ExposeReadReceiptMethod),
     ("Chat API korumalı geçmiş endpointleri sunmalı", ChatController_Should_RequireAuthAndExposeHistory),
-    ("Bildirim API korumali okuma ve okundu endpointleri sunmali", BildirimController_Should_RequireAuthAndExposeNotificationEndpoints)
+    ("Bildirim API korumali okuma ve okundu endpointleri sunmali", BildirimController_Should_RequireAuthAndExposeNotificationEndpoints),
+    ("Auth hassas endpointleri AuthStrict rate limit kullanmali", AuthController_Should_UseAuthStrictRateLimit),
+    ("Profil public vitrin endpointi AllowAnonymous olmali", ProfilController_PublicStorefront_Should_BeAllowAnonymous)
 };
 
 var failed = new List<string>();
@@ -45,6 +48,20 @@ foreach (var (name, test) in tests)
     try
     {
         test();
+        Console.WriteLine($"[OK] {name}");
+    }
+    catch (Exception ex)
+    {
+        failed.Add($"{name}: {ex.Message}");
+        Console.WriteLine($"[FAIL] {name}");
+    }
+}
+
+foreach (var (name, test) in ServiceBehaviorTests.GetTests())
+{
+    try
+    {
+        await test();
         Console.WriteLine($"[OK] {name}");
     }
     catch (Exception ex)
@@ -236,11 +253,45 @@ static void DashboardController_Should_RequireExpectedRoles()
 
 static void TalepController_Endpoints_Should_RequireExpectedRoles()
 {
+    var detailMethod = typeof(TalepController).GetMethod(nameof(TalepController.GetTalepById));
+    if (detailMethod?.GetCustomAttribute<AuthorizeAttribute>() == null)
+        throw new InvalidOperationException("TalepController.GetTalepById uzerinde Authorize attribute bulunamadi.");
+
     AssertMethodRole(typeof(TalepController), nameof(TalepController.TalepOlustur), ApplicationRoles.Alici);
     AssertMethodRole(typeof(TalepController), nameof(TalepController.GetBenimTaleplerim), ApplicationRoles.Alici);
     AssertMethodRole(typeof(TalepController), nameof(TalepController.GetSaticiTalepleri), ApplicationRoles.Satici);
     AssertMethodRole(typeof(TalepController), nameof(TalepController.TeklifVer), ApplicationRoles.Satici);
     AssertMethodRole(typeof(TalepController), nameof(TalepController.TeklifKabulEt), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(TalepController), nameof(TalepController.TeklifReddet), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(TalepController), nameof(TalepController.TalepIptalEt), ApplicationRoles.Alici);
+}
+
+static void AuthController_Should_UseAuthStrictRateLimit()
+{
+    var methodNames = new[]
+    {
+        nameof(AuthController.RegisterSatici),
+        nameof(AuthController.RegisterAlici),
+        nameof(AuthController.Login),
+        nameof(AuthController.ResendVerification),
+        nameof(AuthController.ConfirmEmailCode),
+        nameof(AuthController.ConfirmEmail)
+    };
+
+    foreach (var methodName in methodNames)
+    {
+        var method = typeof(AuthController).GetMethod(methodName);
+        var rateLimit = method?.GetCustomAttribute<EnableRateLimitingAttribute>();
+        if (rateLimit == null || rateLimit.PolicyName != "AuthStrict")
+            throw new InvalidOperationException($"AuthController.{methodName} uzerinde AuthStrict rate limiting bulunamadi.");
+    }
+}
+
+static void ProfilController_PublicStorefront_Should_BeAllowAnonymous()
+{
+    var method = typeof(ProfilController).GetMethod(nameof(ProfilController.GetSaticiPublicProfil));
+    if (method?.GetCustomAttribute<AllowAnonymousAttribute>() == null)
+        throw new InvalidOperationException("ProfilController.GetSaticiPublicProfil AllowAnonymous olmalidir.");
 }
 
 static void ChatHub_Should_ExposeSecureSendMethod()

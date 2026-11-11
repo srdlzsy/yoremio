@@ -28,15 +28,17 @@ Development base URL:
 
 Önemli yollar:
 
-- Health check: `GET /health`
+- Liveness check: `GET /health`
+- Readiness check (PostgreSQL): `GET /health/ready`
 - SignalR hub: `/chathub`
 - Swagger/OpenAPI: sadece Development ortamında map edilir.
 
 Rate limit:
 
-- Varsayılan: `300 request / 60 saniye`
-- Config: `RateLimiting:PermitLimit`, `RateLimiting:WindowSeconds`
+- Global API varsayılanı: `300 request / 60 saniye` (`RateLimiting:PermitLimit`, `RateLimiting:WindowSeconds`)
+- Auth endpoint sıkı limiti (`AuthStrict`): `15 request / 60 saniye` (`RateLimiting:AuthPermitLimit`, `RateLimiting:AuthWindowSeconds`, IP + endpoint path bazlı)
 - Limit aşılırsa `429 Too Many Requests` döner.
+- `Login` ve `ConfirmEmailCode` uçlarında ASP.NET Identity hesap kilitleme (`lockoutOnFailure: true`) aktiftir.
 
 CORS:
 
@@ -973,6 +975,41 @@ UI kullanimi:
 - Rozet icin `dogrulanmisSatici`, sosyal kanit icin `ortalamaPuan`, `toplamYorum`, `toplamFavori`.
 - `kapakResimUrl` de urun medyasi gibi relative veya absolute olabilir; `resolveMediaUrl` helper'i kullanilmalidir.
 
+### 7.5 Public Satıcı Vitrin Özeti
+
+`GET /api/Profil/satici/{saticiId}`
+
+Auth: Public (`AllowAnonymous`)
+
+Mantık:
+
+- Tek bir satıcının public mağaza özetini (`SaticiOzetDto`) döner; `vergiNo`, `iban`, `telefon` gibi özel alanları içermez.
+- Satıcı bulunamazsa `404` döner.
+
+Response örneği:
+
+```json
+{
+  "success": true,
+  "message": "Satici ozeti getirildi.",
+  "data": {
+    "kullaniciId": "seller-user-id",
+    "magazaAdi": "Posof Organik",
+    "sehir": "Ardahan",
+    "ilce": "Posof",
+    "dogrulanmisSatici": true,
+    "urunSayisi": 12,
+    "ortalamaPuan": 4.8,
+    "toplamYorum": 34,
+    "toplamFavori": 89,
+    "guvenSkoru": 92.5,
+    "kapakResimUrl": "/uploads/urunler/posof-bal.jpg",
+    "vitrinUrunId": 42
+  },
+  "traceId": "..."
+}
+```
+
 ## 8. Kategori API
 
 Kategori modeli:
@@ -1122,6 +1159,7 @@ Query params:
 | `ilce` | string | null | Satıcı ilçe filtresi, contains mantığı. |
 | `sadeceAktif` | bool | true | Aktif ürünleri getirir. |
 | `sadeceStoktaOlanlar` | bool | false | Stok `> 0` ürünleri getirir. |
+| `sadeceDogrulanmisSatici` | bool | false | Yalnızca doğrulanmış satıcıların ürünlerini getirir. |
 | `minOrtalamaPuan` | double | null | Ortalama puan alt limiti. |
 | `sort` | string | newest | Sıralama. |
 | `page` | int | 1 | 1'den küçükse 1 yapılır. |
@@ -1384,6 +1422,7 @@ Mantık:
 
 - Aynı alıcı aynı ürüne tekrar puan verirse mevcut puan güncellenir.
 - Ürün yoksa veya aktif değilse hata döner.
+- Satıcı kendi ürününe puan veremez (`400 Bad Request`).
 
 Response:
 
@@ -1392,7 +1431,8 @@ Response:
   "success": true,
   "message": "Puan kaydedildi.",
   "data": {
-    "ortalama": 5
+    "ortalama": 5,
+    "urunOrtalama": 4.67
   },
   "traceId": "..."
 }
@@ -1400,8 +1440,8 @@ Response:
 
 UI notu:
 
-- Bu endpoint response'undaki `data.ortalama` mevcut implementasyonda kaydedilen/güncellenen puan değerini temsil eder.
-- Ürünün gerçek ortalamasını göstermek için `GET /api/Puan/ortalama/{urunId}` veya `UrunDto.ortalamaPuan` kullanılmalıdır.
+- Geriye dönük uyumluluk için `data.ortalama` kaydedilen/güncellenen puan değerini döndürmeye devam eder.
+- Ürünün güncel genel ortalaması aynı response içindeki `data.urunOrtalama` alanından (veya `GET /api/Puan/ortalama/{urunId}` / `UrunDto.ortalamaPuan` üzerinden) alınabilir.
 
 ### 10.2 Ürün Puanları
 
@@ -1594,6 +1634,7 @@ Body:
 Validasyon:
 
 - `urunId`: 1 veya daha büyük, ürün var ve aktif olmalı
+- Satıcı kendi ürünü için talep oluşturamaz (`400 Bad Request`)
 - `miktar`: 1-100000
 - `not`: opsiyonel, max 1000 karakter
 
@@ -1679,6 +1720,52 @@ Response:
 
 - `data`: güncel `TalepDto`
 
+### 12.6.1 Teklif Reddet
+
+`POST /api/Talep/teklif/{teklifId}/red`
+
+Auth: `ALICI`
+
+Mantık:
+
+- Sadece talebi oluşturan alıcı teklifi reddedebilir.
+- Talep `ACIK` olmalı ve teklif durumu `BEKLEMEDE` olmalıdır.
+- Teklif `RED` durumuna geçer; talep diğer tekliflere açık (`ACIK`) kalmaya devam eder.
+
+Response:
+
+- `data`: güncel `TalepDto`
+
+### 12.6.2 Talep İptal Et
+
+`POST /api/Talep/{talepId}/iptal`
+
+Auth: `ALICI`
+
+Mantık:
+
+- Sadece talebi oluşturan alıcı talebini iptal edebilir.
+- Sadece `ACIK` durumdaki talepler iptal edilebilir (`ANLASILDI` veya zaten `IPTAL` olan talepte `400 Bad Request`).
+- Talep `IPTAL` olur; henüz sonuçlanmamış (`BEKLEMEDE`) teklifler otomatik `RED` durumuna çekilir.
+
+Response:
+
+- `data`: güncel `TalepDto`
+
+### 12.6.3 Talep Detayı
+
+`GET /api/Talep/{talepId}`
+
+Auth: `ALICI` veya `SATICI`
+
+Mantık:
+
+- Yalnızca ilgili talebin alıcısı veya talebin ürününün satıcısı erişebilir (yetkisiz kullanıcıya `403 Forbidden`, bulunamazsa `404 Not Found`).
+
+Response:
+
+- `data`: `TalepDto`
+
 ### 12.7 Yardim/Destek Talebi
 
 `POST /api/Destek/talep`
@@ -1724,12 +1811,15 @@ Not:
   "userId": "other-user-id",
   "userName": "other@example.com",
   "email": "other@example.com",
+  "magazaAdi": "Posof Organik",
   "lastMessage": "Merhaba, ürün hala stokta mı?",
   "lastSenderId": "other-user-id",
   "lastMessageAt": "2026-06-15T10:20:30Z",
   "unreadCount": 2
 }
 ```
+
+> Not: `magazaAdi` alanı karşı taraf bir satıcı profiline sahipse mağaza adını döner; değilse `null` olur.
 
 `ChatMessageDto`:
 
@@ -2164,6 +2254,13 @@ Global exception mapping:
 Production ortamında beklenmeyen `500` detayları gizlenir; UI `message` ve `traceId` göstermelidir.
 
 ## 18. Endpoint Özet Tablosu
+
+### Health
+
+| Method | Endpoint | Auth | Rol | Açıklama |
+| --- | --- | --- | --- | --- |
+| `GET` | `/health` | Hayır | - | Uygulama liveness check |
+| `GET` | `/health/ready` | Hayır | - | PostgreSQL readiness check |
 
 ### App
 
@@ -2612,6 +2709,7 @@ Auth ek endpoint:
 | `GET` | `/api/Profil/satici` | Evet | `SATICI` | Satıcı profilim |
 | `PUT` | `/api/Profil/satici` | Evet | `SATICI` | Satıcı profil güncelle |
 | `GET` | `/api/Profil/saticilar/one-cikan` | Hayir | - | Ana sayfa icin one cikan saticilar |
+| `GET` | `/api/Profil/satici/{saticiId}` | Hayır | - | Public satıcı vitrin özeti |
 | `GET` | `/api/Profil/satici/{saticiId}/guven-skoru` | Hayır | - | Public satıcı güven skoru |
 
 ### Kategori
@@ -2666,10 +2764,13 @@ Auth ek endpoint:
 | Method | Endpoint | Auth | Rol | Açıklama |
 | --- | --- | --- | --- | --- |
 | `POST` | `/api/Talep` | Evet | `ALICI` | Talep oluştur |
+| `GET` | `/api/Talep/{talepId}` | Evet | `ALICI`/`SATICI` | Talep detayı (taraflara özel) |
 | `GET` | `/api/Talep/benim` | Evet | `ALICI` | Alıcı talepleri |
 | `GET` | `/api/Talep/satici` | Evet | `SATICI` | Satıcıya gelen talepler |
 | `POST` | `/api/Talep/{talepId}/teklif` | Evet | `SATICI` | Teklif ver/güncelle |
 | `POST` | `/api/Talep/teklif/{teklifId}/kabul` | Evet | `ALICI` | Teklif kabul |
+| `POST` | `/api/Talep/teklif/{teklifId}/red` | Evet | `ALICI` | Teklif reddet |
+| `POST` | `/api/Talep/{talepId}/iptal` | Evet | `ALICI` | Talebi iptal et |
 
 ### Destek
 
@@ -2686,6 +2787,15 @@ Auth ek endpoint:
 | `POST` | `/api/Chat/messages/{receiverId}` | Evet | Any | REST mesaj gönder |
 | `POST` | `/api/Chat/messages/{otherUserId}/read` | Evet | Any | Konuşmayı okundu işaretle |
 | SignalR | `/chathub` | Evet | Any | Canlı chat |
+
+### Bildirim
+
+| Method | Endpoint | Auth | Rol | Açıklama |
+| --- | --- | --- | --- | --- |
+| `GET` | `/api/Bildirim` | Evet | Any | Kullanıcı bildirim listesi (sayfalı) |
+| `GET` | `/api/Bildirim/okunmamis-sayisi` | Evet | Any | Okunmamış bildirim sayısı |
+| `POST` | `/api/Bildirim/{bildirimId}/okundu` | Evet | Any | Tek bildirimi okundu işaretle |
+| `POST` | `/api/Bildirim/tumunu-okundu` | Evet | Any | Tüm bildirimleri okundu işaretle |
 
 ## 19. UI Tasarım Checklist'i
 
