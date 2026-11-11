@@ -30,6 +30,11 @@ namespace Infrastructure.Services
                 throw new KeyNotFoundException("Urun bulunamadi.");
             }
 
+            if (string.Equals(urun.SaticiId, aliciId, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("Kendi urununuz icin talep olusturamazsiniz.");
+            }
+
             var talep = new Talep
             {
                 AliciId = aliciId,
@@ -43,8 +48,7 @@ namespace Infrastructure.Services
             await _talepRepository.SaveChangesAsync();
 
             var created = await _talepRepository.GetByIdWithDetailsAsync(talep.Id) ?? talep;
-            if (!string.IsNullOrWhiteSpace(urun.SaticiId) &&
-                !string.Equals(urun.SaticiId, aliciId, StringComparison.Ordinal))
+            if (!string.IsNullOrWhiteSpace(urun.SaticiId))
             {
                 await _bildirimService.BildirimOlusturAsync(new BildirimOlusturDto
                 {
@@ -59,6 +63,24 @@ namespace Infrastructure.Services
             }
 
             return MapTalepDto(created);
+        }
+
+        public async Task<TalepDto> GetTalepByIdAsync(int talepId, string userId)
+        {
+            var talep = await _talepRepository.GetByIdWithDetailsAsync(talepId);
+            if (talep == null)
+            {
+                throw new KeyNotFoundException("Talep bulunamadi.");
+            }
+
+            var isBuyer = string.Equals(talep.AliciId, userId, StringComparison.Ordinal);
+            var isSeller = talep.Urun != null && string.Equals(talep.Urun.SaticiId, userId, StringComparison.Ordinal);
+            if (!isBuyer && !isSeller)
+            {
+                throw new UnauthorizedAccessException("Bu talebi goruntuleme yetkiniz yok.");
+            }
+
+            return MapTalepDto(talep);
         }
 
         public async Task<IReadOnlyCollection<TalepDto>> GetAliciTalepleriAsync(string aliciId)
@@ -140,6 +162,11 @@ namespace Infrastructure.Services
                 throw new ArgumentException("Bu talep zaten sonuclanmis.");
             }
 
+            if (teklif.Durum != TalepTeklifDurumlari.Beklemede)
+            {
+                throw new ArgumentException("Sadece beklemedeki teklifler kabul edilebilir.");
+            }
+
             teklif.Talep.Durum = TalepDurumlari.Anlasildi;
             teklif.Talep.GuncellemeTarihi = DateTime.UtcNow;
 
@@ -164,6 +191,96 @@ namespace Infrastructure.Services
             });
 
             return MapTalepDto(updatedTalep);
+        }
+
+        public async Task<TalepDto> TeklifReddetAsync(int teklifId, string aliciId)
+        {
+            var teklif = await _talepRepository.GetTeklifByIdWithDetailsAsync(teklifId);
+            if (teklif == null || teklif.Talep == null)
+            {
+                throw new KeyNotFoundException("Teklif bulunamadi.");
+            }
+
+            if (!string.Equals(teklif.Talep.AliciId, aliciId, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("Bu teklif uzerinde islem yetkiniz yok.");
+            }
+
+            if (teklif.Talep.Durum != TalepDurumlari.Acik)
+            {
+                throw new ArgumentException("Bu talep zaten sonuclanmis.");
+            }
+
+            if (teklif.Durum != TalepTeklifDurumlari.Beklemede)
+            {
+                throw new ArgumentException("Sadece beklemedeki teklifler reddedilebilir.");
+            }
+
+            teklif.Durum = TalepTeklifDurumlari.Red;
+            teklif.Talep.GuncellemeTarihi = DateTime.UtcNow;
+
+            _talepRepository.Update(teklif.Talep);
+            await _talepRepository.SaveChangesAsync();
+
+            var updatedTalep = await _talepRepository.GetByIdWithDetailsAsync(teklif.TalepId) ?? teklif.Talep;
+            await _bildirimService.BildirimOlusturAsync(new BildirimOlusturDto
+            {
+                KullaniciId = teklif.SaticiId,
+                Tur = BildirimTurleri.Teklif,
+                Baslik = "Teklif reddedildi",
+                Mesaj = $"{teklif.Talep.Urun?.Adi ?? "Urun"} icin verdiginiz teklif reddedildi.",
+                IlgiliVarlikTuru = "TalepTeklif",
+                IlgiliVarlikId = teklif.Id.ToString(),
+                AksiyonUrl = $"/talepler/{teklif.TalepId}"
+            });
+
+            return MapTalepDto(updatedTalep);
+        }
+
+        public async Task<TalepDto> TalepIptalEtAsync(int talepId, string aliciId)
+        {
+            var talep = await _talepRepository.GetByIdWithDetailsAsync(talepId);
+            if (talep == null)
+            {
+                throw new KeyNotFoundException("Talep bulunamadi.");
+            }
+
+            if (!string.Equals(talep.AliciId, aliciId, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("Bu talep uzerinde islem yetkiniz yok.");
+            }
+
+            if (talep.Durum != TalepDurumlari.Acik)
+            {
+                throw new ArgumentException("Sadece acik talepler iptal edilebilir.");
+            }
+
+            talep.Durum = TalepDurumlari.Iptal;
+            talep.GuncellemeTarihi = DateTime.UtcNow;
+
+            foreach (var teklif in talep.Teklifler.Where(t => t.Durum == TalepTeklifDurumlari.Beklemede))
+            {
+                teklif.Durum = TalepTeklifDurumlari.Red;
+            }
+
+            _talepRepository.Update(talep);
+            await _talepRepository.SaveChangesAsync();
+
+            if (!string.IsNullOrWhiteSpace(talep.Urun?.SaticiId))
+            {
+                await _bildirimService.BildirimOlusturAsync(new BildirimOlusturDto
+                {
+                    KullaniciId = talep.Urun.SaticiId,
+                    Tur = BildirimTurleri.Talep,
+                    Baslik = "Talep iptal edildi",
+                    Mesaj = $"{talep.Urun.Adi} urunu icin olusturulan talep alici tarafindan iptal edildi.",
+                    IlgiliVarlikTuru = "Talep",
+                    IlgiliVarlikId = talep.Id.ToString(),
+                    AksiyonUrl = $"/talepler/{talep.Id}"
+                });
+            }
+
+            return MapTalepDto(talep);
         }
 
         private async Task TeklifBildirimiGonderAsync(Talep talep, TalepTeklif teklif)

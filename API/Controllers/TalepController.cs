@@ -32,6 +32,20 @@ namespace API.Controllers
             return Ok(ApiResponse<TalepDto>.Ok(result, "Talep olusturuldu.", HttpContext.TraceIdentifier));
         }
 
+        [Authorize]
+        [HttpGet("{talepId:int}")]
+        public async Task<IActionResult> GetTalepById(int talepId)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanici dogrulanamadi.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var result = await _talepService.GetTalepByIdAsync(talepId, userId);
+            return Ok(ApiResponse<TalepDto>.Ok(result, "Talep detayi getirildi.", HttpContext.TraceIdentifier));
+        }
+
         [Authorize(Roles = ApplicationRoles.Alici)]
         [HttpGet("benim")]
         public async Task<IActionResult> GetBenimTaleplerim()
@@ -86,6 +100,34 @@ namespace API.Controllers
 
             var result = await _talepService.TeklifKabulEtAsync(teklifId, aliciId);
             return Ok(ApiResponse<TalepDto>.Ok(result, "Teklif kabul edildi, talep anlasildi olarak guncellendi.", HttpContext.TraceIdentifier));
+        }
+
+        [Authorize(Roles = ApplicationRoles.Alici)]
+        [HttpPost("teklif/{teklifId:int}/red")]
+        public async Task<IActionResult> TeklifReddet(int teklifId)
+        {
+            var aliciId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(aliciId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanici dogrulanamadi.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var result = await _talepService.TeklifReddetAsync(teklifId, aliciId);
+            return Ok(ApiResponse<TalepDto>.Ok(result, "Teklif reddedildi.", HttpContext.TraceIdentifier));
+        }
+
+        [Authorize(Roles = ApplicationRoles.Alici)]
+        [HttpPost("{talepId:int}/iptal")]
+        public async Task<IActionResult> TalepIptalEt(int talepId)
+        {
+            var aliciId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(aliciId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanici dogrulanamadi.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var result = await _talepService.TalepIptalEtAsync(talepId, aliciId);
+            return Ok(ApiResponse<TalepDto>.Ok(result, "Talep iptal edildi.", HttpContext.TraceIdentifier));
         }
     }
 }

@@ -93,14 +93,7 @@ namespace Infrastructure.Services
                 : Math.Round(urunler.SelectMany(u => u.Puanlar).Average(p => p.PuanDegeri), 1);
 
             var dogrulanmisSatici = IsSellerVerified(satici);
-
-            var kayitGun = (DateTime.UtcNow - satici.KayitTarihi).TotalDays;
-            var puanSkoru = (ortalamaPuan / 5d) * 45d;
-            var yorumSkoru = (Math.Min(toplamYorum, 50) / 50d) * 20d;
-            var favoriSkoru = (Math.Min(toplamFavori, 100) / 100d) * 15d;
-            var deneyimSkoru = (Math.Min(kayitGun, 365) / 365d) * 10d;
-            var dogrulamaSkoru = dogrulanmisSatici ? 10d : 0d;
-            var guvenSkoru = Math.Round(Math.Min(100, puanSkoru + yorumSkoru + favoriSkoru + deneyimSkoru + dogrulamaSkoru), 1);
+            var guvenSkoru = CalculateTrustScore(satici, urunler, ortalamaPuan, toplamYorum, toplamFavori);
 
             return new SaticiGuvenSkoruDto
             {
@@ -114,6 +107,12 @@ namespace Infrastructure.Services
                 ToplamFavori = toplamFavori,
                 GuvenSkoru = guvenSkoru
             };
+        }
+
+        public async Task<SaticiOzetDto?> GetPublicSaticiDetayAsync(string saticiId)
+        {
+            var satici = await _saticiRepo.GetSaticiPublicDetailsByIdAsync(saticiId);
+            return satici is null ? null : MapToOzetDto(satici);
         }
 
         public async Task<IReadOnlyCollection<SaticiOzetDto>> GetOneCikanSaticilarAsync(int take)

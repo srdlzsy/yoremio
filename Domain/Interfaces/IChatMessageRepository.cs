@@ -10,6 +10,7 @@ namespace Domain.Interfaces
         Task<IReadOnlyCollection<ChatMessage>> GetConversationMessagesAsync(string firstUserId, string secondUserId, int skip, int take);
         Task<int> GetConversationMessageCountAsync(string firstUserId, string secondUserId);
         Task<int> GetUnreadCountAsync(string receiverId, string senderId);
+        Task<Dictionary<string, int>> GetUnreadCountsBySenderAsync(string receiverId);
         Task<int> MarkConversationReadAsync(string receiverId, string senderId, DateTime readAt);
     }
 }

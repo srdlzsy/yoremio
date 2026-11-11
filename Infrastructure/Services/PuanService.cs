@@ -1,4 +1,4 @@
-﻿using Application.Interfaces;
+using Application.Interfaces;
 using Domain.Entities;
 using Domain.Interfaces;
 
@@ -20,10 +20,15 @@ namespace Infrastructure.Services
 
         public async Task<int> GetOrCreatePuanAsync(int urunId, string kullaniciId, int puanDegeri)
         {
-            var urun = await _urunRepository.GetByIdAsync(urunId);
+            var urun = await _urunRepository.GetByIdWithRelationsAsync(urunId);
             if (urun == null || !urun.AktifMi)
             {
                 throw new KeyNotFoundException("Ürün bulunamadı.");
+            }
+
+            if (string.Equals(urun.SaticiId, kullaniciId, StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException("Kendi ürününüze puan veremezsiniz.");
             }
 
             if (!await _talepRepository.HasAcceptedDemandForProductAsync(kullaniciId, urunId))

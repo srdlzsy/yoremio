@@ -86,6 +86,7 @@ namespace Infrastructure.Services
         {
             currentUserId = ValidateUserId(currentUserId);
             var messages = await _chatMessageRepository.GetRecentMessagesForUserAsync(currentUserId, ConversationScanLimit);
+            var unreadCounts = await _chatMessageRepository.GetUnreadCountsBySenderAsync(currentUserId);
 
             var conversations = new List<ChatConversationDto>();
             foreach (var group in messages.GroupBy(message => GetOtherUserId(message, currentUserId)))
@@ -103,11 +104,12 @@ namespace Infrastructure.Services
                 {
                     UserId = group.Key,
                     UserName = otherUser?.UserName,
+                    MagazaAdi = otherUser?.SaticiProfili?.MagazaAdi,
                     Email = otherUser?.Email,
                     LastMessage = lastMessage.Message,
                     LastSenderId = lastMessage.SenderId,
                     LastMessageAt = lastMessage.SentAt,
-                    UnreadCount = await _chatMessageRepository.GetUnreadCountAsync(currentUserId, group.Key)
+                    UnreadCount = unreadCounts.GetValueOrDefault(group.Key, 0)
                 });
             }
 

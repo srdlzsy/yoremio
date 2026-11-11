@@ -41,7 +41,7 @@ namespace Infrastructure.Repositories
             return urun;
         }
 
-        public async Task<Urun?> GetByIdAsync(int id)
+        public async Task<Urun?> GetByIdForUpdateAsync(int id)
         {
             return await _dbSet.Include(u => u.Resimler)
                                .Include(u => u.Videolar)
@@ -51,12 +51,20 @@ namespace Infrastructure.Repositories
                                .Include(u => u.Satici)
                                .ThenInclude(s => s.Kullanici)
                                .Include(u => u.Yorumlar)
+                               .ThenInclude(y => y.YorumYapanKullanici)
+                               .AsSplitQuery()
                                .FirstOrDefaultAsync(x => x.Id == id);
+        }
+
+        public async Task<Urun?> GetByIdAsync(int id)
+        {
+            return await GetByIdForUpdateAsync(id);
         }
 
         public override async Task<IEnumerable<Urun>> GetAllAsync()
         {
-            return await _dbSet.Include(u => u.Resimler)
+            return await _dbSet.AsNoTracking()
+                               .Include(u => u.Resimler)
                                .Include(u => u.Videolar)
                                .Include(u => u.Kategori)
                                .Include(u => u.Puanlar)
@@ -64,12 +72,15 @@ namespace Infrastructure.Repositories
                                .Include(u => u.Satici)
                                .ThenInclude(s => s.Kullanici)
                                .Include(u => u.Yorumlar)
+                               .ThenInclude(y => y.YorumYapanKullanici)
+                               .AsSplitQuery()
                                .ToListAsync();
         }
 
         public override async Task<IEnumerable<Urun>> FindAsync(Expression<Func<Urun, bool>> predicate)
         {
-            return await _dbSet.Include(u => u.Resimler)
+            return await _dbSet.AsNoTracking()
+                               .Include(u => u.Resimler)
                                .Include(u => u.Videolar)
                                .Include(u => u.Kategori)
                                .Include(u => u.Puanlar)
@@ -77,6 +88,7 @@ namespace Infrastructure.Repositories
                                .Include(u => u.Satici)
                                .ThenInclude(s => s.Kullanici)
                                .Include(u => u.Yorumlar)
+                               .ThenInclude(y => y.YorumYapanKullanici)
                                .Where(predicate)
                                .AsSplitQuery()
                                .ToListAsync();
@@ -84,7 +96,8 @@ namespace Infrastructure.Repositories
 
         public async Task<Urun?> GetByIdWithRelationsAsync(int id)
         {
-            return await _dbSet.Include(u => u.Videolar)
+            return await _dbSet.AsNoTracking()
+                               .Include(u => u.Videolar)
                                .Include(u => u.Resimler)
                                .Include(u => u.Kategori)
                                .Include(u => u.Puanlar)
@@ -92,6 +105,7 @@ namespace Infrastructure.Repositories
                                .Include(u => u.Satici)
                                .ThenInclude(s => s.Kullanici)
                                .Include(u => u.Yorumlar)
+                               .ThenInclude(y => y.YorumYapanKullanici)
                                .AsSplitQuery()
                                .FirstOrDefaultAsync(u => u.Id == id);
         }
@@ -106,6 +120,7 @@ namespace Infrastructure.Repositories
             }
 
             var urunler = _dbSet
+                .AsNoTracking()
                 .Include(u => u.Resimler)
                 .Include(u => u.Videolar)
                 .Include(u => u.Kategori)
@@ -114,6 +129,7 @@ namespace Infrastructure.Repositories
                 .Include(u => u.Satici)
                 .ThenInclude(s => s.Kullanici)
                 .Include(u => u.Yorumlar)
+                .ThenInclude(y => y.YorumYapanKullanici)
                 .AsSplitQuery()
                 .AsQueryable();
 
@@ -165,6 +181,14 @@ namespace Infrastructure.Repositories
             if (query.SadeceStoktaOlanlar)
             {
                 urunler = urunler.Where(u => u.StokMiktari > 0);
+            }
+
+            if (query.SadeceDogrulanmisSatici)
+            {
+                urunler = urunler.Where(u =>
+                    u.Satici.Kullanici != null &&
+                    u.Satici.Kullanici.EmailConfirmed &&
+                    !string.IsNullOrWhiteSpace(u.Satici.VergiNo));
             }
 
             if (query.MinOrtalamaPuan.HasValue)

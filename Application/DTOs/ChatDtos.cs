@@ -18,6 +18,7 @@ namespace Application.DTOs
     {
         public string UserId { get; set; } = string.Empty;
         public string? UserName { get; set; }
+        public string? MagazaAdi { get; set; }
         public string? Email { get; set; }
         public string LastMessage { get; set; } = string.Empty;
         public string LastSenderId { get; set; } = string.Empty;

@@ -56,7 +56,7 @@ namespace Infrastructure.Services
                 };
             }
 
-            var urun = await _urunRepository.GetByIdAsync(urunId);
+            var urun = await _urunRepository.GetByIdWithRelationsAsync(urunId);
             if (urun == null)
             {
                 return new YorumYetkisiDto
@@ -109,7 +109,7 @@ namespace Infrastructure.Services
         {
             var yorum = await _yorumRepository.GetByIdWithUserAsync(yorumId);
             if (yorum == null)
-                throw new Exception("Yorum bulunamadı.");
+                throw new KeyNotFoundException("Yorum bulunamadı.");
 
             if (!string.Equals(yorum.YorumYapanKullaniciId, kullaniciId, StringComparison.Ordinal))
                 throw new UnauthorizedAccessException("Bu yorum üzerinde işlem yetkiniz yok.");

@@ -64,6 +64,19 @@ namespace API.Controllers
         }
 
         [AllowAnonymous]
+        [HttpGet("satici/{saticiId}")]
+        public async Task<IActionResult> GetSaticiPublicProfil(string saticiId)
+        {
+            var satici = await _saticiProfiliService.GetPublicSaticiDetayAsync(saticiId);
+            if (satici == null)
+            {
+                return NotFound(ApiResponse<object>.Fail("Satıcı bulunamadı.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            return Ok(ApiResponse<SaticiOzetDto>.Ok(satici, "Satıcı vitrin bilgisi getirildi.", HttpContext.TraceIdentifier));
+        }
+
+        [AllowAnonymous]
         [HttpGet("satici/{saticiId}/guven-skoru")]
         public async Task<IActionResult> GetSaticiGuvenSkoru(string saticiId)
         {

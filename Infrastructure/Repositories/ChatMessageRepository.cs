@@ -33,7 +33,9 @@ namespace Infrastructure.Repositories
             return await _dbContext.ChatMessages
                 .AsNoTracking()
                 .Include(message => message.Sender)
+                    .ThenInclude(user => user!.SaticiProfili)
                 .Include(message => message.Receiver)
+                    .ThenInclude(user => user!.SaticiProfili)
                 .Where(message => message.SenderId == userId || message.ReceiverId == userId)
                 .OrderByDescending(message => message.SentAt)
                 .ThenByDescending(message => message.Id)
@@ -77,6 +79,16 @@ namespace Infrastructure.Repositories
                     message.ReceiverId == receiverId &&
                     message.SenderId == senderId &&
                     message.ReadAt == null);
+        }
+
+        public async Task<Dictionary<string, int>> GetUnreadCountsBySenderAsync(string receiverId)
+        {
+            return await _dbContext.ChatMessages
+                .AsNoTracking()
+                .Where(message => message.ReceiverId == receiverId && message.ReadAt == null)
+                .GroupBy(message => message.SenderId)
+                .Select(group => new { SenderId = group.Key, Count = group.Count() })
+                .ToDictionaryAsync(item => item.SenderId, item => item.Count);
         }
 
         public async Task<int> MarkConversationReadAsync(string receiverId, string senderId, DateTime readAt)

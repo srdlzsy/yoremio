@@ -16,6 +16,7 @@ namespace Domain.Models
         public string? Ilce { get; set; }
         public bool SadeceAktif { get; set; } = true;
         public bool SadeceStoktaOlanlar { get; set; }
+        public bool SadeceDogrulanmisSatici { get; set; }
         public double? MinOrtalamaPuan { get; set; }
 
         public int Page

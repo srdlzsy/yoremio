@@ -34,7 +34,8 @@ namespace API.Controllers
             }
 
             var result = await _puanService.GetOrCreatePuanAsync(dto.UrunId, kullaniciId, dto.PuanDegeri);
-            return Ok(ApiResponse<object>.Ok(new { ortalama = result }, "Puan kaydedildi.", HttpContext.TraceIdentifier));
+            var urunOrtalama = await _puanService.GetOrtalamaPuanByUrunIdAsync(dto.UrunId);
+            return Ok(ApiResponse<object>.Ok(new { ortalama = result, urunOrtalama }, "Puan kaydedildi.", HttpContext.TraceIdentifier));
         }
 
         [HttpGet("urun/{urunId}")]

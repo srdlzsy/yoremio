@@ -53,9 +53,15 @@ namespace Infrastructure.Services
 
         public async Task<KategoriDto> AddAsync(KategoriCreateDto dto)
         {
+            var adi = dto.Adi.Trim();
+            if (await _kategoriRepository.ExistsByNameAsync(adi))
+            {
+                throw new ArgumentException("Bu isimde bir kategori zaten mevcut.");
+            }
+
             var kategori = new Kategori
             {
-                Adi = dto.Adi.Trim(),
+                Adi = adi,
                 Aciklama = string.IsNullOrWhiteSpace(dto.Aciklama) ? null : dto.Aciklama.Trim()
             };
 
@@ -73,7 +79,13 @@ namespace Infrastructure.Services
                 return null;
             }
 
-            kategori.Adi = dto.Adi.Trim();
+            var adi = dto.Adi.Trim();
+            if (await _kategoriRepository.ExistsByNameAsync(adi, excludeId: id))
+            {
+                throw new ArgumentException("Bu isimde bir kategori zaten mevcut.");
+            }
+
+            kategori.Adi = adi;
             kategori.Aciklama = string.IsNullOrWhiteSpace(dto.Aciklama) ? null : dto.Aciklama.Trim();
 
             _kategoriRepository.Update(kategori);
@@ -88,6 +100,11 @@ namespace Infrastructure.Services
             if (kategori is null)
             {
                 return false;
+            }
+
+            if (await _kategoriRepository.HasProductsAsync(id))
+            {
+                throw new ArgumentException("Bu kategoriye bagli urunler oldugu icin silinemez.");
             }
 
             _kategoriRepository.Remove(kategori);

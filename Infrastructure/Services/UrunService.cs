@@ -34,14 +34,37 @@ namespace Infrastructure.Services
         {
             var satici = await _saticiRepository.GetByIdAsync(saticiId);
             if (satici == null)
-                throw new Exception("Satıcı bulunamadı.");
+                throw new KeyNotFoundException("Satıcı bulunamadı.");
 
             var saticiAdi = Slugify(satici.MagazaAdi ?? "bilinmeyen-satici");
             var urun = await UrunKaydetAsync(saticiId, dto);
-            var resimUrlListesi = await DosyalariKaydetAsync(dto.Resimler, saticiAdi, urun.Id, "resimler");
-            var videoUrlListesi = await DosyalariKaydetAsync(dto.Videolar, saticiAdi, urun.Id, "videolar");
+            var uploadedUrls = new List<string>();
 
-            return await _urunRepository.EkleUrunAsync(urun, resimUrlListesi, videoUrlListesi);
+            try
+            {
+                var resimUrlListesi = await DosyalariKaydetAsync(dto.Resimler, saticiAdi, urun.Id, "resimler", uploadedUrls);
+                var videoUrlListesi = await DosyalariKaydetAsync(dto.Videolar, saticiAdi, urun.Id, "videolar", uploadedUrls);
+
+                return await _urunRepository.EkleUrunAsync(urun, resimUrlListesi, videoUrlListesi);
+            }
+            catch
+            {
+                foreach (var url in uploadedUrls)
+                {
+                    try
+                    {
+                        await _dosyaKaydetService.SilDosyaAsync(url);
+                    }
+                    catch
+                    {
+                        // Cleanup best-effort; asıl hata korunur.
+                    }
+                }
+
+                _urunRepository.Remove(urun);
+                await _urunRepository.SaveChangesAsync();
+                throw;
+            }
         }
 
         public async Task<PagedResult<UrunDto>> GetAllUrunlerAsync(UrunQuery query)
@@ -117,30 +140,37 @@ namespace Infrastructure.Services
         {
             var satici = await _saticiRepository.GetByIdAsync(saticiId);
             if (satici == null)
-                throw new Exception("Satıcı bulunamadı.");
+                throw new KeyNotFoundException("Satıcı bulunamadı.");
 
             var saticiAdi = Slugify(satici.MagazaAdi ?? "bilinmeyen-satici");
-            var urun = await _urunRepository.GetByIdAsync(urunId);
+            var urun = await _urunRepository.GetByIdForUpdateAsync(urunId);
             if (urun == null)
-                throw new Exception("Ürün bulunamadı.");
+                throw new KeyNotFoundException("Ürün bulunamadı.");
 
             if (!string.Equals(urun.SaticiId, saticiId, StringComparison.Ordinal))
                 throw new UnauthorizedAccessException("Bu ürün üzerinde işlem yetkiniz yok.");
 
+            if (dto.KategoriId.HasValue)
+            {
+                var kategori = await _kategoriRepository.GetByIdAsync(dto.KategoriId.Value);
+                if (kategori == null)
+                    throw new KeyNotFoundException($"Kategori bulunamadı. KategoriId: {dto.KategoriId.Value}");
+
+                urun.KategoriId = dto.KategoriId.Value;
+                urun.Kategori = kategori;
+            }
+
             if (!string.IsNullOrWhiteSpace(dto.Adi))
-                urun.Adi = dto.Adi;
+                urun.Adi = dto.Adi.Trim();
 
             if (!string.IsNullOrWhiteSpace(dto.Aciklama))
-                urun.Aciklama = dto.Aciklama;
+                urun.Aciklama = dto.Aciklama.Trim();
 
             if (dto.Fiyat.HasValue)
                 urun.Fiyat = dto.Fiyat.Value;
 
             if (dto.StokMiktari.HasValue)
                 urun.StokMiktari = dto.StokMiktari.Value;
-
-            if (dto.KategoriId.HasValue)
-                urun.KategoriId = dto.KategoriId.Value;
 
             if (dto.Resimler is { Count: > 0 })
             {
@@ -156,32 +186,45 @@ namespace Infrastructure.Services
                     urun.Videolar.Add(new UrunVideo { Url = url });
             }
 
+            urun.GuncellemeTarihi = DateTime.UtcNow;
             await _urunRepository.SaveChangesAsync();
-            return MapToDto(urun);
+            return await GetUrunByIdAsync(urunId) ?? MapToDto(urun);
         }
 
         public async Task<bool> UrunSilAsync(int urunId, string saticiId)
         {
-            var urun = await _urunRepository.GetByIdAsync(urunId);
+            var urun = await _urunRepository.GetByIdForUpdateAsync(urunId);
             if (urun == null)
-                throw new Exception("Ürün bulunamadı.");
+                throw new KeyNotFoundException("Ürün bulunamadı.");
 
             if (!string.Equals(urun.SaticiId, saticiId, StringComparison.Ordinal))
                 throw new UnauthorizedAccessException("Bu ürün üzerinde işlem yetkiniz yok.");
 
-            await MedyalariSilAsync(urun);
+            var medyaUrlleri = urun.Resimler.Select(r => r.Url)
+                .Concat(urun.Videolar.Select(v => v.Url))
+                .ToList();
+
             _urunRepository.Remove(urun);
-            return await _urunRepository.SaveChangesAsync();
+            var deleted = await _urunRepository.SaveChangesAsync();
+            if (deleted)
+            {
+                foreach (var url in medyaUrlleri)
+                {
+                    await _dosyaKaydetService.SilDosyaAsync(url);
+                }
+            }
+
+            return deleted;
         }
 
         public async Task<UrunDto> UrunDurumuGuncelleAsync(int urunId, string saticiId, bool aktifMi)
         {
-            var urun = await _urunRepository.GetByIdAsync(urunId);
+            var urun = await _urunRepository.GetByIdForUpdateAsync(urunId);
             if (urun == null)
-                throw new Exception("Urun bulunamadi.");
+                throw new KeyNotFoundException("Ürün bulunamadı.");
 
             if (!string.Equals(urun.SaticiId, saticiId, StringComparison.Ordinal))
-                throw new UnauthorizedAccessException("Bu urun uzerinde islem yetkiniz yok.");
+                throw new UnauthorizedAccessException("Bu ürün üzerinde işlem yetkiniz yok.");
 
             urun.AktifMi = aktifMi;
             urun.GuncellemeTarihi = DateTime.UtcNow;
@@ -192,16 +235,16 @@ namespace Infrastructure.Services
 
         public async Task<bool> UrunResimSilAsync(int urunId, int resimId, string saticiId)
         {
-            var urun = await _urunRepository.GetByIdAsync(urunId);
+            var urun = await _urunRepository.GetByIdForUpdateAsync(urunId);
             if (urun == null)
-                throw new Exception("Ürün bulunamadı.");
+                throw new KeyNotFoundException("Ürün bulunamadı.");
 
             if (!string.Equals(urun.SaticiId, saticiId, StringComparison.Ordinal))
                 throw new UnauthorizedAccessException("Bu ürün üzerinde işlem yetkiniz yok.");
 
             var resim = urun.Resimler.FirstOrDefault(r => r.Id == resimId);
             if (resim == null)
-                throw new Exception("Resim bulunamadı.");
+                throw new KeyNotFoundException("Resim bulunamadı.");
 
             await _dosyaKaydetService.SilDosyaAsync(resim.Url);
             urun.Resimler.Remove(resim);
@@ -210,16 +253,16 @@ namespace Infrastructure.Services
 
         public async Task<bool> UrunVideoSilAsync(int urunId, int videoId, string saticiId)
         {
-            var urun = await _urunRepository.GetByIdAsync(urunId);
+            var urun = await _urunRepository.GetByIdForUpdateAsync(urunId);
             if (urun == null)
-                throw new Exception("Ürün bulunamadı.");
+                throw new KeyNotFoundException("Ürün bulunamadı.");
 
             if (!string.Equals(urun.SaticiId, saticiId, StringComparison.Ordinal))
                 throw new UnauthorizedAccessException("Bu ürün üzerinde işlem yetkiniz yok.");
 
             var video = urun.Videolar.FirstOrDefault(v => v.Id == videoId);
             if (video == null)
-                throw new Exception("Video bulunamadı.");
+                throw new KeyNotFoundException("Video bulunamadı.");
 
             await _dosyaKaydetService.SilDosyaAsync(video.Url);
             urun.Videolar.Remove(video);
@@ -228,9 +271,9 @@ namespace Infrastructure.Services
 
         public async Task<Urun?> EkleMedyaToUrunAsync(int urunId, List<string> resimUrlListesi, List<string> videoUrlListesi)
         {
-            var urun = await _urunRepository.GetByIdAsync(urunId);
+            var urun = await _urunRepository.GetByIdForUpdateAsync(urunId);
             if (urun == null)
-                throw new Exception("Ürün bulunamadı.");
+                throw new KeyNotFoundException("Ürün bulunamadı.");
 
             urun.Resimler ??= new List<UrunResim>();
             urun.Videolar ??= new List<UrunVideo>();
@@ -315,7 +358,12 @@ namespace Infrastructure.Services
             return urun;
         }
 
-        private async Task<List<string>> DosyalariKaydetAsync(IEnumerable<IFormFile> dosyalar, string saticiAdi, int urunId, string dosyaTuru)
+        private async Task<List<string>> DosyalariKaydetAsync(
+            IEnumerable<IFormFile> dosyalar,
+            string saticiAdi,
+            int urunId,
+            string dosyaTuru,
+            List<string>? trackedUrls = null)
         {
             var urlListesi = new List<string>();
             if (dosyalar == null || !dosyalar.Any())
@@ -326,22 +374,10 @@ namespace Infrastructure.Services
                 var klasorYolu = Path.Combine(saticiAdi, urunId.ToString(), dosyaTuru);
                 var url = await _dosyaKaydetService.KaydetDosyaAsync(dosya, klasorYolu);
                 urlListesi.Add(url);
+                trackedUrls?.Add(url);
             }
 
             return urlListesi;
-        }
-
-        private async Task MedyalariSilAsync(Urun urun)
-        {
-            foreach (var resim in urun.Resimler.ToList())
-            {
-                await _dosyaKaydetService.SilDosyaAsync(resim.Url);
-            }
-
-            foreach (var video in urun.Videolar.ToList())
-            {
-                await _dosyaKaydetService.SilDosyaAsync(video.Url);
-            }
         }
 
         private static string Slugify(string text)
