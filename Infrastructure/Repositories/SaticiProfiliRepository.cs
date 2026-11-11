@@ -49,8 +49,10 @@ namespace Infrastructure.Repositories
             return await _dbSet
                 .AsNoTracking()
                 .Where(p => p.AktifMi && p.Urunler.Any(u => u.AktifMi))
-                .OrderByDescending(p => p.Kullanici != null && p.Kullanici.EmailConfirmed)
-                .ThenByDescending(p => p.Urunler.Where(u => u.AktifMi).Sum(u => u.Favoriler.Count + u.Yorumlar.Count + u.Puanlar.Count))
+                .OrderByDescending(p =>
+                    p.AdminDogrulandiMi == true ||
+                    (p.AdminDogrulandiMi == null && p.Kullanici != null && p.Kullanici.EmailConfirmed && !string.IsNullOrWhiteSpace(p.VergiNo)))
+                .ThenByDescending(p => p.Urunler.Where(u => u.AktifMi).Sum(u => u.Favoriler.Count + u.Yorumlar.Count(y => y.AktifMi) + u.Puanlar.Count))
                 .ThenByDescending(p => p.Urunler.Count(u => u.AktifMi))
                 .Take(candidateLimit)
                 .Include(p => p.Kullanici)

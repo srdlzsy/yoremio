@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,6 +13,7 @@ namespace Domain.Entities
         public int UrunId { get; set; } // Yorumun yapıldığı ürünün ID'si
         public string Icerik { get; set; } = null!; // Yorum içeriği
         public DateTime Tarih { get; set; } = DateTime.UtcNow; // Yorumun yapıldığı tarih
+        public bool AktifMi { get; set; } = true;
         // Navigation properties
         public virtual ApplicationUser? YorumYapanKullanici { get; set; }
         public virtual Urun? Urun { get; set; }

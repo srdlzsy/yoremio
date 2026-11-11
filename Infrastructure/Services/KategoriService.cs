@@ -42,13 +42,22 @@ namespace Infrastructure.Services
                 kategoriler = (await _kategoriRepository.GetAllAsync()).ToList();
             }
 
-            return kategoriler.OrderBy(x => x.Adi).Select(MapToDto);
+            var sayilar = await _kategoriRepository.GetActiveProductCountsAsync();
+            return kategoriler
+                .OrderBy(x => x.Adi)
+                .Select(k => MapToDto(k, sayilar.GetValueOrDefault(k.Id, 0)));
         }
 
         public async Task<KategoriDto?> GetDtoByIdAsync(int id)
         {
             var kategori = await _kategoriRepository.GetByIdAsync(id);
-            return kategori is null ? null : MapToDto(kategori);
+            if (kategori is null)
+            {
+                return null;
+            }
+
+            var sayilar = await _kategoriRepository.GetActiveProductCountsAsync();
+            return MapToDto(kategori, sayilar.GetValueOrDefault(kategori.Id, 0));
         }
 
         public async Task<KategoriDto> AddAsync(KategoriCreateDto dto)
@@ -111,13 +120,14 @@ namespace Infrastructure.Services
             return await _kategoriRepository.SaveChangesAsync();
         }
 
-        private static KategoriDto MapToDto(Kategori kategori)
+        private static KategoriDto MapToDto(Kategori kategori, int urunSayisi = 0)
         {
             return new KategoriDto
             {
                 Id = kategori.Id,
                 Adi = kategori.Adi,
-                Aciklama = kategori.Aciklama
+                Aciklama = kategori.Aciklama,
+                UrunSayisi = urunSayisi
             };
         }
 

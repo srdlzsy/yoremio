@@ -25,5 +25,14 @@ namespace Infrastructure.Repositories
                 .AsNoTracking()
                 .AnyAsync(u => u.KategoriId == kategoriId);
         }
+
+        public async Task<IReadOnlyDictionary<int, int>> GetActiveProductCountsAsync()
+        {
+            return await _context.Set<Urun>()
+                .AsNoTracking()
+                .Where(u => u.AktifMi)
+                .GroupBy(u => u.KategoriId)
+                .ToDictionaryAsync(g => g.Key, g => g.Count());
+        }
     }
 }

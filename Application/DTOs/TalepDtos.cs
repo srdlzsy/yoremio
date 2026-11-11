@@ -40,6 +40,7 @@ namespace Application.DTOs
     {
         public int Id { get; set; }
         public string AliciId { get; set; } = string.Empty;
+        public string? AliciAdi { get; set; }
         public int UrunId { get; set; }
         public string? UrunAdi { get; set; }
         public string? UrunResimUrl { get; set; }
@@ -52,6 +53,7 @@ namespace Application.DTOs
         public string? Not { get; set; }
         public string Durum { get; set; } = string.Empty;
         public DateTime OlusturmaTarihi { get; set; }
+        public DateTime? GuncellemeTarihi { get; set; }
         public List<TalepTeklifDto> Teklifler { get; set; } = new();
     }
 }

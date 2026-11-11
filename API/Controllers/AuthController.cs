@@ -18,6 +18,7 @@ namespace API.Controllers
     {
         private readonly IAuthService _authService;
         private readonly ISaticiProfiliService _saticiProfiliService;
+        private readonly IAliciProfiliService _aliciProfiliService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly VerificationOptions _verificationOptions;
         private readonly ILogger<AuthController> _logger;
@@ -25,12 +26,14 @@ namespace API.Controllers
         public AuthController(
             IAuthService authService,
             ISaticiProfiliService saticiProfiliService,
+            IAliciProfiliService aliciProfiliService,
             UserManager<ApplicationUser> userManager,
             IOptions<VerificationOptions> verificationOptions,
             ILogger<AuthController> logger)
         {
             _authService = authService;
             _saticiProfiliService = saticiProfiliService;
+            _aliciProfiliService = aliciProfiliService;
             _userManager = userManager;
             _verificationOptions = verificationOptions.Value;
             _logger = logger;
@@ -153,6 +156,12 @@ namespace API.Controllers
             }
 
             var roles = await _userManager.GetRolesAsync(user);
+            var satici = roles.Contains(Domain.Constants.ApplicationRoles.Satici)
+                ? await _saticiProfiliService.GetSaticiProfilDtoAsync(user.Id)
+                : null;
+            var alici = roles.Contains(Domain.Constants.ApplicationRoles.Alici)
+                ? await _aliciProfiliService.GetAliciProfilDtoAsync(user.Id)
+                : null;
 
             var data = new AuthMeDto
             {
@@ -162,7 +171,10 @@ namespace API.Controllers
                 PhoneNumber = user.PhoneNumber,
                 Role = roles.FirstOrDefault(),
                 Roles = roles.ToArray(),
-                EmailConfirmed = user.EmailConfirmed
+                EmailConfirmed = user.EmailConfirmed,
+                MagazaAdi = satici?.MagazaAdi,
+                Sehir = satici?.Sehir ?? alici?.Sehir,
+                Ilce = satici?.Ilce ?? alici?.Ilce
             };
 
             return Ok(ApiResponse<AuthMeDto>.Ok(data, "Kullanici bilgisi getirildi.", HttpContext.TraceIdentifier));

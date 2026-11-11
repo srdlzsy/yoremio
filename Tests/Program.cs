@@ -38,7 +38,10 @@ var tests = new (string Name, Action Test)[]
     ("Chat API korumalı geçmiş endpointleri sunmalı", ChatController_Should_RequireAuthAndExposeHistory),
     ("Bildirim API korumali okuma ve okundu endpointleri sunmali", BildirimController_Should_RequireAuthAndExposeNotificationEndpoints),
     ("Auth hassas endpointleri AuthStrict rate limit kullanmali", AuthController_Should_UseAuthStrictRateLimit),
-    ("Profil public vitrin endpointi AllowAnonymous olmali", ProfilController_PublicStorefront_Should_BeAllowAnonymous)
+    ("Profil public vitrin endpointi AllowAnonymous olmali", ProfilController_PublicStorefront_Should_BeAllowAnonymous),
+    ("Admin endpointleri Admin rolu istemeli", AdminController_Endpoints_Should_RequireAdminRole),
+    ("Satici profil guncelleme kapak resmi ve aciklama dogrulamali", SaticiProfilGuncelleDto_Should_ValidateCoverImageAndDescription),
+    ("Alici kayit DTO opsiyonel profil alanlarini kabul etmeli", RegisterAliciDto_Should_SupportOptionalProfileFields)
 };
 
 var failed = new List<string>();
@@ -221,8 +224,10 @@ static void ProfilController_Should_RequireSellerRole()
     if (authorize == null)
         throw new InvalidOperationException("ProfilController üzerinde Authorize attribute bulunamadı.");
 
-    if (!string.Equals(authorize.Roles, ApplicationRoles.Satici, StringComparison.Ordinal))
-        throw new InvalidOperationException($"ProfilController için beklenen rol {ApplicationRoles.Satici}, mevcut: {authorize.Roles}");
+    AssertMethodRole(typeof(ProfilController), nameof(ProfilController.GetSaticiProfil), ApplicationRoles.Satici);
+    AssertMethodRole(typeof(ProfilController), nameof(ProfilController.UpdateSaticiProfil), ApplicationRoles.Satici);
+    AssertMethodRole(typeof(ProfilController), nameof(ProfilController.GetAliciProfil), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(ProfilController), nameof(ProfilController.UpdateAliciProfil), ApplicationRoles.Alici);
 
     var trustMethod = typeof(ProfilController).GetMethod(nameof(ProfilController.GetSaticiGuvenSkoru));
     if (trustMethod == null)
@@ -343,6 +348,49 @@ static void BildirimController_Should_RequireAuthAndExposeNotificationEndpoints(
     AssertHttpMethod(typeof(BildirimController), nameof(BildirimController.GetOkunmamisSayisi), typeof(HttpGetAttribute));
     AssertHttpMethod(typeof(BildirimController), nameof(BildirimController.OkunduIsaretle), typeof(HttpPostAttribute));
     AssertHttpMethod(typeof(BildirimController), nameof(BildirimController.TumunuOkunduIsaretle), typeof(HttpPostAttribute));
+}
+
+static void AdminController_Endpoints_Should_RequireAdminRole()
+{
+    var authorize = typeof(AdminController).GetCustomAttribute<AuthorizeAttribute>();
+    if (authorize == null || !string.Equals(authorize.Roles, ApplicationRoles.Admin, StringComparison.Ordinal))
+        throw new InvalidOperationException("AdminController sınıfı Admin rolü istemelidir.");
+
+    AssertHttpMethod(typeof(AdminController), nameof(AdminController.GetKullanicilar), typeof(HttpGetAttribute));
+    AssertHttpMethod(typeof(AdminController), nameof(AdminController.SetSaticiDogrulama), typeof(HttpPatchAttribute));
+    AssertHttpMethod(typeof(AdminController), nameof(AdminController.SetSaticiDurum), typeof(HttpPatchAttribute));
+    AssertHttpMethod(typeof(AdminController), nameof(AdminController.GetUrunler), typeof(HttpGetAttribute));
+    AssertHttpMethod(typeof(AdminController), nameof(AdminController.SetUrunDurum), typeof(HttpPatchAttribute));
+    AssertHttpMethod(typeof(AdminController), nameof(AdminController.GetYorumlar), typeof(HttpGetAttribute));
+    AssertHttpMethod(typeof(AdminController), nameof(AdminController.SetYorumDurum), typeof(HttpPatchAttribute));
+}
+
+static void SaticiProfilGuncelleDto_Should_ValidateCoverImageAndDescription()
+{
+    var invalidFile = CreateFormFile("not-image.txt", "text/plain", 16);
+    var dto = new SaticiProfilGuncelleDto
+    {
+        Aciklama = "Organik aile ciftligi",
+        KapakResim = invalidFile
+    };
+
+    var results = Validate(dto);
+    AssertContains(results, "Kapak fotoğrafı yalnızca geçerli bir resim dosyası olmalıdır.");
+}
+
+static void RegisterAliciDto_Should_SupportOptionalProfileFields()
+{
+    var dto = new RegisterAliciDto
+    {
+        Email = "alici@example.com",
+        Password = "Aa!12345",
+        UserName = "alici_yoremio",
+        Sehir = "Ardahan",
+        Ilce = "Posof",
+        Adres = "Merkez Mah."
+    };
+
+    AssertValid(dto);
 }
 
 static List<string> Validate(object instance)

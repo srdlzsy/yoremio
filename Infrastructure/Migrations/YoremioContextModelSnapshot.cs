@@ -38,8 +38,16 @@ namespace Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("Ilce")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<DateTime>("KayitTarihi")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Sehir")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.HasKey("KullaniciId");
 
@@ -260,6 +268,13 @@ namespace Infrastructure.Migrations
                     b.Property<string>("KullaniciId")
                         .HasColumnType("text");
 
+                    b.Property<string>("Aciklama")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool?>("AdminDogrulandiMi")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Adres")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -270,6 +285,10 @@ namespace Infrastructure.Migrations
                     b.Property<string>("Ilce")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("KapakResimUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<DateTime>("KayitTarihi")
                         .HasColumnType("timestamp with time zone");
@@ -503,6 +522,9 @@ namespace Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AktifMi")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Icerik")
                         .IsRequired()

@@ -8,6 +8,7 @@ namespace Application.Interfaces
     {
         Task<Urun> UrunEkleAsync(string saticiId, UrunEkleDto dto);
         Task<PagedResult<UrunDto>> GetAllUrunlerAsync(UrunQuery query);
+        Task<IReadOnlyCollection<AppLocationDto>> GetActiveLocationsAsync();
         Task<IEnumerable<UrunDto>> GetOnerilenUrunlerAsync(string kullaniciId, int take);
         Task<IEnumerable<UrunDto>> GetUrunlerBySaticiIdAsync(string saticiId);
         Task<IEnumerable<UrunDto>> GetFavoriUrunlerAsync(string kullaniciId);

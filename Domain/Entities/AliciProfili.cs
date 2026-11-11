@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -12,6 +12,12 @@ namespace Domain.Entities
 
         [StringLength(200)]
         public string? Adres { get; set; }
+
+        [StringLength(100)]
+        public string? Sehir { get; set; }
+
+        [StringLength(100)]
+        public string? Ilce { get; set; }
 
         [StringLength(100)]
         public string? FavoriKategori { get; set; }

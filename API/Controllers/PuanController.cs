@@ -47,6 +47,7 @@ namespace API.Controllers
                 Id = p.Id,
                 UrunId = p.UrunId,
                 KullaniciId = p.KullaniciId,
+                KullaniciAdi = p.Kullanici?.UserName,
                 PuanDegeri = p.PuanDegeri,
                 PuanTarihi = p.PuanTarihi
             });

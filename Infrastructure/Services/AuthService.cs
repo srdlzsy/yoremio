@@ -120,12 +120,26 @@ namespace Infrastructure.Services
         public async Task<(bool Succeeded, string? Error)> RegisterAliciAsync(RegisterAliciDto dto)
         {
             var normalizedEmail = dto.Email.Trim();
+            var desiredUserName = string.IsNullOrWhiteSpace(dto.UserName) ? normalizedEmail : dto.UserName.Trim();
+
+            if (!string.IsNullOrWhiteSpace(dto.UserName))
+            {
+                var existingUserName = await _userManager.FindByNameAsync(desiredUserName);
+                if (existingUserName != null)
+                {
+                    return (false, "Bu kullanici adi zaten kullaniliyor.");
+                }
+            }
+
             var user = new ApplicationUser
             {
-                UserName = normalizedEmail,
+                UserName = desiredUserName,
                 Email = normalizedEmail,
                 AliciProfili = new AliciProfili
                 {
+                    Adres = string.IsNullOrWhiteSpace(dto.Adres) ? null : dto.Adres.Trim(),
+                    Sehir = string.IsNullOrWhiteSpace(dto.Sehir) ? null : dto.Sehir.Trim(),
+                    Ilce = string.IsNullOrWhiteSpace(dto.Ilce) ? null : dto.Ilce.Trim(),
                     AktifMi = true
                 }
             };

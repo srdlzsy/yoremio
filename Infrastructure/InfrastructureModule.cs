@@ -1,4 +1,4 @@
-﻿using Application.Interfaces;
+using Application.Interfaces;
 using Domain.Entities;
 using Domain.Interfaces;
 using Infrastructure.Hubs;
@@ -65,6 +65,9 @@ namespace Infrastructure
             // Özel Repository & Service
             services.AddScoped<ISaticiProfiliRepository, SaticiProfiliRepository>();
             services.AddScoped<ISaticiProfiliService, SaticiProfiliService>();
+            services.AddScoped<IAliciProfiliRepository, AliciProfiliRepository>();
+            services.AddScoped<IAliciProfiliService, AliciProfiliService>();
+            services.AddScoped<IAdminService, AdminService>();
             services.AddScoped<IUrunRepository, UrunRepository>();
             services.AddScoped<IUrunFavoriRepository, UrunFavoriRepository>();
             services.AddScoped<ITalepRepository, TalepRepository>();
@@ -99,6 +102,7 @@ namespace Infrastructure
             services.AddScoped<IYorumServices, YorumServices>();
             services.AddScoped<IPuanService, PuanService>();
             services.AddScoped<IChatService, ChatService>();
+            services.AddScoped<IBildirimRealtimeDispatcher, SignalRBildirimDispatcher>();
             services.AddScoped<IBildirimService, BildirimService>();
             services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
 

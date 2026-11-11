@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,6 +19,8 @@ namespace Application.DTOs
     public class YorumYetkisiDto
     {
         public bool YorumYapabilir { get; set; }
+        public bool Puanlayabilir { get; set; }
+        public int? MevcutPuan { get; set; }
         public string? Sebep { get; set; }
     }
 

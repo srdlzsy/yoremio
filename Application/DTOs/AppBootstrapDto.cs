@@ -5,10 +5,18 @@ namespace Application.DTOs
         public string Environment { get; set; } = string.Empty;
         public IReadOnlyCollection<string> Roles { get; set; } = Array.Empty<string>();
         public IReadOnlyCollection<KategoriDto> Categories { get; set; } = Array.Empty<KategoriDto>();
+        public IReadOnlyCollection<string> Cities { get; set; } = Array.Empty<string>();
+        public IReadOnlyCollection<AppLocationDto> Locations { get; set; } = Array.Empty<AppLocationDto>();
         public IReadOnlyCollection<string> ProductSorts { get; set; } = Array.Empty<string>();
         public AppFeatureFlagsDto Features { get; set; } = new();
         public AppVerificationConfigDto Verification { get; set; } = new();
         public AppUploadConfigDto Uploads { get; set; } = new();
+    }
+
+    public sealed class AppLocationDto
+    {
+        public string Sehir { get; set; } = string.Empty;
+        public IReadOnlyCollection<string> Ilceler { get; set; } = Array.Empty<string>();
     }
 
     public sealed class AppFeatureFlagsDto

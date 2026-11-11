@@ -9,12 +9,17 @@ namespace Infrastructure.Services
     {
         private readonly ISaticiProfiliRepository _saticiRepo;
         private readonly IUrunRepository _urunRepository;
+        private readonly IDosyaKaydetService? _dosyaKaydetService;
 
-        public SaticiProfiliService(ISaticiProfiliRepository saticiRepo, IUrunRepository urunRepository)
+        public SaticiProfiliService(
+            ISaticiProfiliRepository saticiRepo,
+            IUrunRepository urunRepository,
+            IDosyaKaydetService? dosyaKaydetService = null)
             : base(saticiRepo)
         {
             _saticiRepo = saticiRepo;
             _urunRepository = urunRepository;
+            _dosyaKaydetService = dosyaKaydetService;
         }
 
         public async Task<SaticiProfili?> GetByVergiNoAsync(string vergiNo)
@@ -62,9 +67,38 @@ namespace Infrastructure.Services
                 satici.Ilce = string.IsNullOrWhiteSpace(dto.Ilce) ? null : dto.Ilce.Trim();
             }
 
+            if (dto.Aciklama is not null)
+            {
+                satici.Aciklama = string.IsNullOrWhiteSpace(dto.Aciklama) ? null : dto.Aciklama.Trim();
+            }
+
             if (!string.IsNullOrWhiteSpace(dto.PhoneNumber) && satici.Kullanici is not null)
             {
                 satici.Kullanici.PhoneNumber = dto.PhoneNumber.Trim();
+            }
+
+            if (dto.KapakResim is not null && dto.KapakResim.Length > 0)
+            {
+                if (_dosyaKaydetService is null)
+                {
+                    throw new InvalidOperationException("Dosya kaydetme servisi yapilandirilmamis.");
+                }
+
+                var eskiKapakUrl = satici.KapakResimUrl;
+                var yeniKapakUrl = await _dosyaKaydetService.KaydetDosyaAsync(dto.KapakResim, Path.Combine("saticilar", kullaniciId));
+                satici.KapakResimUrl = yeniKapakUrl;
+
+                if (!string.IsNullOrWhiteSpace(eskiKapakUrl))
+                {
+                    try
+                    {
+                        await _dosyaKaydetService.SilDosyaAsync(eskiKapakUrl);
+                    }
+                    catch
+                    {
+                        // Eski kapak resmi temizligi best-effort uygulanir.
+                    }
+                }
             }
 
             _saticiRepo.Update(satici);
@@ -84,7 +118,7 @@ namespace Infrastructure.Services
             var urunler = (await _urunRepository.FindAsync(u => u.SaticiId == saticiId && u.AktifMi)).ToList();
 
             var toplamPuan = urunler.Sum(u => u.Puanlar.Count);
-            var toplamYorum = urunler.Sum(u => u.Yorumlar.Count);
+            var toplamYorum = urunler.Sum(u => u.Yorumlar.Count(y => y.AktifMi));
             var toplamFavori = urunler.Sum(u => u.Favoriler.Count);
             var urunSayisi = urunler.Count;
 
@@ -140,9 +174,12 @@ namespace Infrastructure.Services
                 Adres = satici.Adres,
                 Sehir = satici.Sehir,
                 Ilce = satici.Ilce,
+                Aciklama = satici.Aciklama,
+                KapakResimUrl = satici.KapakResimUrl,
                 KayitTarihi = satici.KayitTarihi,
                 AktifMi = satici.AktifMi,
                 DogrulanmisSatici = IsSellerVerified(satici),
+                AdminDogrulamaDurumu = satici.AdminDogrulandiMi,
                 Email = satici.Kullanici?.Email,
                 UserName = satici.Kullanici?.UserName,
                 PhoneNumber = satici.Kullanici?.PhoneNumber
@@ -153,7 +190,7 @@ namespace Infrastructure.Services
         {
             var aktifUrunler = satici.Urunler.Where(u => u.AktifMi).ToList();
             var toplamPuan = aktifUrunler.Sum(u => u.Puanlar.Count);
-            var toplamYorum = aktifUrunler.Sum(u => u.Yorumlar.Count);
+            var toplamYorum = aktifUrunler.Sum(u => u.Yorumlar.Count(y => y.AktifMi));
             var toplamFavori = aktifUrunler.Sum(u => u.Favoriler.Count);
             var ortalamaPuan = toplamPuan == 0
                 ? 0
@@ -162,7 +199,7 @@ namespace Infrastructure.Services
             var vitrinUrunler = aktifUrunler
                 .OrderByDescending(u => u.Favoriler.Count)
                 .ThenByDescending(u => u.Puanlar.Count == 0 ? 0 : u.Puanlar.Average(p => p.PuanDegeri))
-                .ThenByDescending(u => u.Yorumlar.Count)
+                .ThenByDescending(u => u.Yorumlar.Count(y => y.AktifMi))
                 .ThenByDescending(u => u.OlusturmaTarihi)
                 .ToList();
             var vitrinUrun = vitrinUrunler.FirstOrDefault();
@@ -173,6 +210,7 @@ namespace Infrastructure.Services
                 MagazaAdi = satici.MagazaAdi,
                 Sehir = satici.Sehir,
                 Ilce = satici.Ilce,
+                Aciklama = satici.Aciklama,
                 DogrulanmisSatici = IsSellerVerified(satici),
                 UrunSayisi = aktifUrunler.Count,
                 OrtalamaPuan = ortalamaPuan,
@@ -180,10 +218,12 @@ namespace Infrastructure.Services
                 ToplamFavori = toplamFavori,
                 GuvenSkoru = guvenSkoru,
                 VitrinUrunId = vitrinUrun?.Id,
-                KapakResimUrl = vitrinUrunler
-                    .SelectMany(u => u.Resimler)
-                    .Select(r => r.Url)
-                    .FirstOrDefault()
+                KapakResimUrl = !string.IsNullOrWhiteSpace(satici.KapakResimUrl)
+                    ? satici.KapakResimUrl
+                    : vitrinUrunler
+                        .SelectMany(u => u.Resimler)
+                        .Select(r => r.Url)
+                        .FirstOrDefault()
             };
         }
 
@@ -207,9 +247,7 @@ namespace Infrastructure.Services
 
         private static bool IsSellerVerified(SaticiProfili satici)
         {
-            return !string.IsNullOrWhiteSpace(satici.VergiNo)
-                && satici.Kullanici is not null
-                && satici.Kullanici.EmailConfirmed;
+            return SaticiProfili.IsVerified(satici);
         }
     }
 }

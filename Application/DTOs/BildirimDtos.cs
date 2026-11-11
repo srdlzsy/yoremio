@@ -14,6 +14,7 @@ namespace Application.DTOs
         public DateTime OlusturmaTarihi { get; set; }
         public DateTime? OkunmaTarihi { get; set; }
         public bool OkunduMu => OkunmaTarihi.HasValue;
+        public int? OkunmamisSayisi { get; set; }
     }
 
     public class BildirimOlusturDto

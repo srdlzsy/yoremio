@@ -17,8 +17,9 @@ namespace Infrastructure.Repositories
         public async Task<IEnumerable<Yorum>> GetYorumlarByUrunIdAsync(int urunId)
         {
             return await _dbContext.Yorumlar
+                .AsNoTracking()
                 .Include(y => y.YorumYapanKullanici)
-                .Where(y => y.UrunId == urunId)
+                .Where(y => y.UrunId == urunId && y.AktifMi)
                 .OrderByDescending(y => y.Tarih)
                 .ToListAsync();
         }

@@ -48,7 +48,10 @@ namespace API.Controllers
 
         [Authorize(Roles = ApplicationRoles.Alici)]
         [HttpGet("benim")]
-        public async Task<IActionResult> GetBenimTaleplerim()
+        public async Task<IActionResult> GetBenimTaleplerim(
+            [FromQuery] string? durum = null,
+            [FromQuery] int? page = null,
+            [FromQuery] int? pageSize = null)
         {
             var aliciId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(aliciId))
@@ -56,13 +59,22 @@ namespace API.Controllers
                 return Unauthorized(ApiResponse<object>.Fail("Kullanici dogrulanamadi.", traceId: HttpContext.TraceIdentifier));
             }
 
-            var result = await _talepService.GetAliciTalepleriAsync(aliciId);
+            if (page.HasValue || pageSize.HasValue)
+            {
+                var paged = await _talepService.GetAliciTalepleriPagedAsync(aliciId, durum, page ?? 1, pageSize ?? 12);
+                return Ok(ApiResponse<Domain.Models.PagedResult<TalepDto>>.Ok(paged, "Alici talepleri getirildi.", HttpContext.TraceIdentifier));
+            }
+
+            var result = await _talepService.GetAliciTalepleriAsync(aliciId, durum);
             return Ok(ApiResponse<IReadOnlyCollection<TalepDto>>.Ok(result, "Alici talepleri getirildi.", HttpContext.TraceIdentifier));
         }
 
         [Authorize(Roles = ApplicationRoles.Satici)]
         [HttpGet("satici")]
-        public async Task<IActionResult> GetSaticiTalepleri()
+        public async Task<IActionResult> GetSaticiTalepleri(
+            [FromQuery] string? durum = null,
+            [FromQuery] int? page = null,
+            [FromQuery] int? pageSize = null)
         {
             var saticiId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(saticiId))
@@ -70,7 +82,13 @@ namespace API.Controllers
                 return Unauthorized(ApiResponse<object>.Fail("Kullanici dogrulanamadi.", traceId: HttpContext.TraceIdentifier));
             }
 
-            var result = await _talepService.GetSaticiTalepleriAsync(saticiId);
+            if (page.HasValue || pageSize.HasValue)
+            {
+                var paged = await _talepService.GetSaticiTalepleriPagedAsync(saticiId, durum, page ?? 1, pageSize ?? 12);
+                return Ok(ApiResponse<Domain.Models.PagedResult<TalepDto>>.Ok(paged, "Satici talepleri getirildi.", HttpContext.TraceIdentifier));
+            }
+
+            var result = await _talepService.GetSaticiTalepleriAsync(saticiId, durum);
             return Ok(ApiResponse<IReadOnlyCollection<TalepDto>>.Ok(result, "Satici talepleri getirildi.", HttpContext.TraceIdentifier));
         }
 

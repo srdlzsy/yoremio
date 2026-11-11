@@ -22,7 +22,12 @@ internal static class ServiceBehaviorTests
             ("SaticiProfiliService tum endpointler icin ayni guven skorunu hesaplamali", SaticiProfiliService_Should_ComputeConsistentTrustScore),
             ("ChatService konusma listesinde N+1 olmadan okunmamis sayisi ve magaza adini donmeli", ChatService_Should_UseBatchUnreadCountsAndStoreName),
             ("UrunService bulunamayan kayitlarda 404 icin KeyNotFoundException firlatmali", UrunService_Should_ThrowKeyNotFound_AndRollbackOrphanProduct),
-            ("KategoriService tekil isim ve urunlu kategori silme kontrolu yapmali", KategoriService_Should_EnforceUniqueNameAndProductGuard)
+            ("KategoriService tekil isim ve urunlu kategori silme kontrolu yapmali", KategoriService_Should_EnforceUniqueNameAndProductGuard),
+            ("BildirimService olusturma ve okundu islemlerinde SignalR olayi yayinlamali", BildirimService_Should_DispatchRealtimeNotificationAndUnreadCount),
+            ("SaticiProfiliService kapak resmi yukleyip aciklamayi kaydetmeli", SaticiProfiliService_Should_UploadCoverAndSaveDescription),
+            ("KategoriService ve UrunService aktif urun sayisi ile lokasyonlari donmeli", KategoriAndUrunService_Should_ReturnProductCountsAndLocations),
+            ("YorumServices puanlama yetkisi ve mevcut puani donmeli", YorumServices_Should_ReturnRatingEligibilityAndCurrentScore),
+            ("TalepService aliciAdi, durum filtresi ve sayfalama desteklemeli", TalepService_Should_FilterAndPaginateWithBuyerName)
         };
     }
 
@@ -230,6 +235,126 @@ internal static class ServiceBehaviorTests
             service.DeleteAsync(1));
     }
 
+    private static async Task BildirimService_Should_DispatchRealtimeNotificationAndUnreadCount()
+    {
+        var repo = new FakeBildirimRepository();
+        var dispatcher = new FakeBildirimRealtimeDispatcher();
+        var service = new BildirimService(repo, dispatcher);
+
+        var created = await service.BildirimOlusturAsync(new BildirimOlusturDto
+        {
+            KullaniciId = "user-1",
+            Tur = BildirimTurleri.Teklif,
+            Baslik = "Yeni teklif",
+            Mesaj = "Urununuz icin yeni teklif geldi."
+        });
+
+        if (dispatcher.Notifications.Count != 1 || dispatcher.Notifications[0].UnreadCount != 1 || created.OkunmamisSayisi != 1)
+            throw new InvalidOperationException("BildirimService NotificationReceived olayini veya okunmamis sayisini yayinlamadi.");
+
+        await service.OkunduIsaretleAsync(created.Id, "user-1");
+        if (dispatcher.UnreadCountUpdates.LastOrDefault() != ("user-1", 0))
+            throw new InvalidOperationException("Bildirim okundu isaretlenince UnreadNotificationCountUpdated 0 olmali.");
+    }
+
+    private static async Task SaticiProfiliService_Should_UploadCoverAndSaveDescription()
+    {
+        var seller = new SaticiProfili
+        {
+            KullaniciId = "seller-1",
+            MagazaAdi = "Kars Yayla",
+            VergiNo = "1234567890",
+            AktifMi = true,
+            KapakResimUrl = "/uploads/old-cover.jpg",
+            Kullanici = new ApplicationUser { Id = "seller-1", EmailConfirmed = true }
+        };
+
+        var saticiRepo = new FakeSaticiProfiliRepository(seller);
+        var urunRepo = new FakeUrunRepository();
+        var dosya = new InMemoryDosyaKaydetService();
+        var service = new SaticiProfiliService(saticiRepo, urunRepo, dosya);
+
+        var formFile = new FormFile(new MemoryStream(new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 }), 0, 4, "kapakResim", "kapak.jpg")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "image/jpeg"
+        };
+
+        var updated = await service.UpdateProfilAsync("seller-1", new SaticiProfilGuncelleDto
+        {
+            Aciklama = "Dogal yayla ureticisi",
+            KapakResim = formFile
+        });
+
+        if (updated == null || updated.Aciklama != "Dogal yayla ureticisi" || string.IsNullOrWhiteSpace(updated.KapakResimUrl))
+            throw new InvalidOperationException("Satici profil aciklamasi veya kapak resmi kaydedilmedi.");
+
+        if (!dosya.DeletedUrls.Contains("/uploads/old-cover.jpg"))
+            throw new InvalidOperationException("Eski kapak resmi temizlenmedi.");
+
+        var ozet = await service.GetPublicSaticiDetayAsync("seller-1");
+        if (ozet?.KapakResimUrl != updated.KapakResimUrl || ozet.Aciklama != "Dogal yayla ureticisi")
+            throw new InvalidOperationException("Public satici vitrin ozetinde ozel kapak veya aciklama donmedi.");
+    }
+
+    private static async Task KategoriAndUrunService_Should_ReturnProductCountsAndLocations()
+    {
+        var kategoriRepo = new FakeKategoriRepository();
+        kategoriRepo.Items.Add(new Kategori { Id = 1, Adi = "Bal" });
+        kategoriRepo.ProductCounts[1] = 4;
+
+        var kategoriService = new KategoriService(kategoriRepo);
+        var kategoriler = (await kategoriService.GetAllDtosAsync()).ToList();
+        if (kategoriler.Single().UrunSayisi != 4)
+            throw new InvalidOperationException("KategoriDto.UrunSayisi dogru donmedi.");
+
+        var urunRepo = new FakeUrunRepository();
+        urunRepo.Items.Add(new Urun { Id = 1, AktifMi = true, Satici = new SaticiProfili { Sehir = "Ardahan", Ilce = "Posof" } });
+        urunRepo.Items.Add(new Urun { Id = 2, AktifMi = true, Satici = new SaticiProfili { Sehir = "Ardahan", Ilce = "Merkez" } });
+
+        var urunService = new UrunService(urunRepo, new FakeUrunFavoriRepository(), new FakeSaticiProfiliRepository(), kategoriRepo, new InMemoryDosyaKaydetService());
+        var locations = await urunService.GetActiveLocationsAsync();
+        if (locations.Count != 1 || locations.Single().Ilceler.Count != 2)
+            throw new InvalidOperationException("Aktif sehir/ilce gruplamasi beklendigi gibi donmedi.");
+    }
+
+    private static async Task YorumServices_Should_ReturnRatingEligibilityAndCurrentScore()
+    {
+        var urunRepo = new FakeUrunRepository();
+        urunRepo.Items.Add(new Urun { Id = 50, Adi = "Bal", SaticiId = "seller-1", AktifMi = true });
+
+        var talepRepo = new FakeTalepRepository(urunRepo);
+        talepRepo.Talepler.Add(new Talep { Id = 1, AliciId = "buyer-1", UrunId = 50, Durum = TalepDurumlari.Anlasildi });
+
+        var puanRepo = new FakePuanRepository
+        {
+            ExistingPuan = new Puan { Id = 1, UrunId = 50, KullaniciId = "buyer-1", PuanDegeri = 4 }
+        };
+
+        var yorumService = new YorumServices(new FakeYorumRepository(), urunRepo, talepRepo, puanRepo);
+        var yetki = await yorumService.GetYorumYetkisiAsync(50, "buyer-1");
+
+        if (!yetki.YorumYapabilir || !yetki.Puanlayabilir || yetki.MevcutPuan != 4)
+            throw new InvalidOperationException("YorumYetkisiDto puanlayabilir veya mevcutPuan alanini dogru donmedi.");
+    }
+
+    private static async Task TalepService_Should_FilterAndPaginateWithBuyerName()
+    {
+        var urunRepo = new FakeUrunRepository();
+        urunRepo.Items.Add(new Urun { Id = 60, Adi = "Peynir", SaticiId = "seller-1", AktifMi = true, Fiyat = 200 });
+
+        var talepRepo = new FakeTalepRepository(urunRepo);
+        var alici = new ApplicationUser { Id = "buyer-1", UserName = "serdal_alici", Email = "serdal@example.com" };
+        talepRepo.Talepler.Add(new Talep { Id = 1, AliciId = "buyer-1", Alici = alici, UrunId = 60, Urun = urunRepo.Items[0], Miktar = 1, Durum = TalepDurumlari.Acik, OlusturmaTarihi = DateTime.UtcNow.AddMinutes(-5) });
+        talepRepo.Talepler.Add(new Talep { Id = 2, AliciId = "buyer-1", Alici = alici, UrunId = 60, Urun = urunRepo.Items[0], Miktar = 2, Durum = TalepDurumlari.Iptal, OlusturmaTarihi = DateTime.UtcNow });
+
+        var service = new TalepService(talepRepo, urunRepo, new FakeBildirimService());
+        var paged = await service.GetSaticiTalepleriPagedAsync("seller-1", TalepDurumlari.Acik, 1, 10);
+
+        if (paged.TotalCount != 1 || paged.Items.Single().AliciAdi != "serdal_alici")
+            throw new InvalidOperationException("TalepService durum filtresi, sayfalama veya AliciAdi eslemesi hatali.");
+    }
+
     private static async Task AssertThrowsAsync<TException>(Func<Task> action) where TException : Exception
     {
         try
@@ -292,8 +417,20 @@ internal static class ServiceBehaviorTests
         public Task<Urun?> GetByIdAsync(object id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == Convert.ToInt32(id)));
         public Task<Urun?> GetByIdForUpdateAsync(int id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == id));
         public Task<Urun?> GetByIdWithRelationsAsync(int id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == id));
-        public Task<IReadOnlyCollection<Urun>> GetRecommendedAsync(IReadOnlyCollection<int> kategoriIdleri, IReadOnlyCollection<int> haricUrunIdleri, int take)
+        public Task<IReadOnlyCollection<Urun>> GetRecommendedAsync(
+            IReadOnlyCollection<int> kategoriIdleri,
+            IReadOnlyCollection<int> haricUrunIdleri,
+            int take,
+            string? tercihEdilenSehir = null,
+            string? tercihEdilenIlce = null)
             => Task.FromResult<IReadOnlyCollection<Urun>>(Items.Take(take).ToList());
+        public Task<IReadOnlyCollection<(string Sehir, string? Ilce)>> GetActiveSellerLocationsAsync()
+            => Task.FromResult<IReadOnlyCollection<(string Sehir, string? Ilce)>>(
+                Items
+                    .Where(u => u.AktifMi && !string.IsNullOrWhiteSpace(u.Satici?.Sehir))
+                    .Select(u => (u.Satici.Sehir!, u.Satici.Ilce))
+                    .Distinct()
+                    .ToList());
         public Task<PagedResult<Urun>> QueryAsync(UrunQuery query) => Task.FromResult(new PagedResult<Urun>());
         public void Remove(Urun entity) => Items.Remove(entity);
         public Task<bool> SaveChangesAsync() => Task.FromResult(true);
@@ -337,14 +474,49 @@ internal static class ServiceBehaviorTests
         public Task<IEnumerable<Talep>> FindAsync(Expression<Func<Talep, bool>> predicate)
             => Task.FromResult<IEnumerable<Talep>>(Talepler.Where(predicate.Compile()).ToList());
 
-        public Task<IReadOnlyCollection<Talep>> GetAliciTalepleriAsync(string aliciId)
-            => Task.FromResult<IReadOnlyCollection<Talep>>(Talepler.Where(t => t.AliciId == aliciId).ToList());
+        public Task<IReadOnlyCollection<Talep>> GetAliciTalepleriAsync(string aliciId, string? durum = null)
+            => Task.FromResult<IReadOnlyCollection<Talep>>(FilterTalepler(Talepler.Where(t => t.AliciId == aliciId), durum));
+
+        public Task<PagedResult<Talep>> GetAliciTalepleriPagedAsync(string aliciId, string? durum, int page, int pageSize)
+        {
+            var filtered = FilterTalepler(Talepler.Where(t => t.AliciId == aliciId), durum);
+            return Task.FromResult(new PagedResult<Talep>
+            {
+                Items = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToArray(),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = filtered.Count
+            });
+        }
 
         public Task<IEnumerable<Talep>> GetAllAsync() => Task.FromResult<IEnumerable<Talep>>(Talepler);
         public Task<Talep?> GetByIdAsync(object id) => Task.FromResult(Talepler.FirstOrDefault(t => t.Id == Convert.ToInt32(id)));
         public Task<Talep?> GetByIdWithDetailsAsync(int talepId) => Task.FromResult(Talepler.FirstOrDefault(t => t.Id == talepId));
-        public Task<IReadOnlyCollection<Talep>> GetSaticiTalepleriAsync(string saticiId)
-            => Task.FromResult<IReadOnlyCollection<Talep>>(Talepler.Where(t => t.Urun?.SaticiId == saticiId).ToList());
+        public Task<IReadOnlyCollection<Talep>> GetSaticiTalepleriAsync(string saticiId, string? durum = null)
+            => Task.FromResult<IReadOnlyCollection<Talep>>(FilterTalepler(Talepler.Where(t => t.Urun?.SaticiId == saticiId), durum));
+
+        public Task<PagedResult<Talep>> GetSaticiTalepleriPagedAsync(string saticiId, string? durum, int page, int pageSize)
+        {
+            var filtered = FilterTalepler(Talepler.Where(t => t.Urun?.SaticiId == saticiId), durum);
+            return Task.FromResult(new PagedResult<Talep>
+            {
+                Items = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToArray(),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = filtered.Count
+            });
+        }
+
+        private static List<Talep> FilterTalepler(IEnumerable<Talep> query, string? durum)
+        {
+            if (!string.IsNullOrWhiteSpace(durum))
+            {
+                var normalized = durum.Trim().ToUpperInvariant();
+                query = query.Where(t => t.Durum == normalized);
+            }
+
+            return query.OrderByDescending(t => t.OlusturmaTarihi).ToList();
+        }
         public Task<TalepTeklif?> GetTeklifByIdWithDetailsAsync(int teklifId) => Task.FromResult(Teklifler.FirstOrDefault(t => t.Id == teklifId));
         public Task<TalepTeklif?> GetTeklifByTalepVeSaticiAsync(int talepId, string saticiId)
             => Task.FromResult(Teklifler.FirstOrDefault(t => t.TalepId == talepId && t.SaticiId == saticiId));
@@ -357,13 +529,14 @@ internal static class ServiceBehaviorTests
 
     private sealed class FakePuanRepository : IPuanRepository
     {
+        public Puan? ExistingPuan { get; set; }
         public Task AddAsync(Puan entity) => Task.CompletedTask;
         public Task<IEnumerable<Puan>> FindAsync(Expression<Func<Puan, bool>> predicate) => Task.FromResult<IEnumerable<Puan>>(Array.Empty<Puan>());
         public Task<IEnumerable<Puan>> GetAllAsync() => Task.FromResult<IEnumerable<Puan>>(Array.Empty<Puan>());
         public Task<Puan?> GetByIdAsync(object id) => Task.FromResult<Puan?>(null);
         public Task<int> GetOrCreatePuanAsync(int urunId, string kullaniciId, int puanDegeri) => Task.FromResult(puanDegeri);
         public Task<double> GetOrtalamaPuanByUrunIdAsync(int urunId) => Task.FromResult(0d);
-        public Task<Puan?> GetPuanByUrunIdAndKullaniciIdAsync(int urunId, string kullaniciId) => Task.FromResult<Puan?>(null);
+        public Task<Puan?> GetPuanByUrunIdAndKullaniciIdAsync(int urunId, string kullaniciId) => Task.FromResult(ExistingPuan);
         public Task<IEnumerable<Puan>> GetPuanlarByKullaniciIdAsync(string kullaniciId) => Task.FromResult<IEnumerable<Puan>>(Array.Empty<Puan>());
         public Task<IEnumerable<Puan>> GetPuanlarByUrunIdAsync(int urunId) => Task.FromResult<IEnumerable<Puan>>(Array.Empty<Puan>());
         public Task<bool> PuanVarmiAsync(int urunId, string kullaniciId) => Task.FromResult(false);
@@ -434,11 +607,14 @@ internal static class ServiceBehaviorTests
         public List<Kategori> Items { get; } = new();
         public HashSet<int> CategoryIdsWithProducts { get; } = new();
 
+        public Dictionary<int, int> ProductCounts { get; } = new();
+
         public Task AddAsync(Kategori entity) { Items.Add(entity); return Task.CompletedTask; }
         public Task<bool> ExistsByNameAsync(string name, int? excludeId = null)
             => Task.FromResult(Items.Any(k => string.Equals(k.Adi, name.Trim(), StringComparison.OrdinalIgnoreCase) && (!excludeId.HasValue || k.Id != excludeId.Value)));
         public Task<IEnumerable<Kategori>> FindAsync(Expression<Func<Kategori, bool>> predicate)
             => Task.FromResult<IEnumerable<Kategori>>(Items.Where(predicate.Compile()).ToList());
+        public Task<IReadOnlyDictionary<int, int>> GetActiveProductCountsAsync() => Task.FromResult<IReadOnlyDictionary<int, int>>(ProductCounts);
         public Task<IEnumerable<Kategori>> GetAllAsync() => Task.FromResult<IEnumerable<Kategori>>(Items);
         public Task<Kategori?> GetByIdAsync(object id) => Task.FromResult(Items.FirstOrDefault(k => k.Id == Convert.ToInt32(id)));
         public Task<bool> HasProductsAsync(int kategoriId) => Task.FromResult(CategoryIdsWithProducts.Contains(kategoriId));
@@ -468,5 +644,88 @@ internal static class ServiceBehaviorTests
             => throw new InvalidOperationException("Upload simule hatasi");
 
         public Task SilDosyaAsync(string url) => Task.CompletedTask;
+    }
+
+    private sealed class InMemoryDosyaKaydetService : IDosyaKaydetService
+    {
+        public List<string> DeletedUrls { get; } = new();
+
+        public Task<string> KaydetDosyaAsync(IFormFile dosya, string klasor)
+            => Task.FromResult($"/uploads/{klasor}/{dosya.FileName}".Replace("\\", "/"));
+
+        public Task SilDosyaAsync(string url)
+        {
+            DeletedUrls.Add(url);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeBildirimRepository : IBildirimRepository
+    {
+        private long _nextId = 1;
+        public List<Bildirim> Items { get; } = new();
+
+        public Task AddAsync(Bildirim entity)
+        {
+            if (entity.Id == 0) entity.Id = _nextId++;
+            Items.Add(entity);
+            return Task.CompletedTask;
+        }
+
+        public Task<IEnumerable<Bildirim>> FindAsync(Expression<Func<Bildirim, bool>> predicate) => Task.FromResult<IEnumerable<Bildirim>>(Items.Where(predicate.Compile()).ToList());
+        public Task<IEnumerable<Bildirim>> GetAllAsync() => Task.FromResult<IEnumerable<Bildirim>>(Items);
+        public Task<Bildirim?> GetByIdAsync(object id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == Convert.ToInt64(id)));
+        public Task<Bildirim?> GetKullaniciBildirimiAsync(long bildirimId, string kullaniciId) => Task.FromResult(Items.FirstOrDefault(x => x.Id == bildirimId && x.KullaniciId == kullaniciId));
+
+        public Task<PagedResult<Bildirim>> GetKullaniciBildirimleriAsync(string kullaniciId, bool sadeceOkunmamis, int page, int pageSize)
+        {
+            var query = Items.Where(x => x.KullaniciId == kullaniciId && (!sadeceOkunmamis || !x.OkunmaTarihi.HasValue)).ToList();
+            return Task.FromResult(new PagedResult<Bildirim> { Items = query, Page = page, PageSize = pageSize, TotalCount = query.Count });
+        }
+
+        public Task<int> GetOkunmamisSayisiAsync(string kullaniciId) => Task.FromResult(Items.Count(x => x.KullaniciId == kullaniciId && !x.OkunmaTarihi.HasValue));
+
+        public Task<int> TumunuOkunduIsaretleAsync(string kullaniciId, DateTime readAt)
+        {
+            var unread = Items.Where(x => x.KullaniciId == kullaniciId && !x.OkunmaTarihi.HasValue).ToList();
+            foreach (var item in unread) item.OkunmaTarihi = readAt;
+            return Task.FromResult(unread.Count);
+        }
+
+        public void Remove(Bildirim entity) => Items.Remove(entity);
+        public Task<bool> SaveChangesAsync() => Task.FromResult(true);
+        public void Update(Bildirim entity) { }
+    }
+
+    private sealed class FakeBildirimRealtimeDispatcher : IBildirimRealtimeDispatcher
+    {
+        public List<(string UserId, BildirimDto Dto, int UnreadCount)> Notifications { get; } = new();
+        public List<(string UserId, int UnreadCount)> UnreadCountUpdates { get; } = new();
+
+        public Task DispatchNotificationAsync(string kullaniciId, BildirimDto bildirim, int unreadCount)
+        {
+            Notifications.Add((kullaniciId, bildirim, unreadCount));
+            return Task.CompletedTask;
+        }
+
+        public Task DispatchUnreadCountAsync(string kullaniciId, int unreadCount)
+        {
+            UnreadCountUpdates.Add((kullaniciId, unreadCount));
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeYorumRepository : IYorumRepository
+    {
+        public List<Yorum> Items { get; } = new();
+        public Task AddAsync(Yorum entity) { Items.Add(entity); return Task.CompletedTask; }
+        public Task<IEnumerable<Yorum>> FindAsync(Expression<Func<Yorum, bool>> predicate) => Task.FromResult<IEnumerable<Yorum>>(Items.Where(predicate.Compile()).ToList());
+        public Task<IEnumerable<Yorum>> GetAllAsync() => Task.FromResult<IEnumerable<Yorum>>(Items);
+        public Task<Yorum?> GetByIdAsync(object id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == Convert.ToInt32(id)));
+        public Task<Yorum?> GetByIdWithUserAsync(int yorumId) => Task.FromResult(Items.FirstOrDefault(x => x.Id == yorumId));
+        public Task<IEnumerable<Yorum>> GetYorumlarByUrunIdAsync(int urunId) => Task.FromResult<IEnumerable<Yorum>>(Items.Where(x => x.UrunId == urunId && x.AktifMi).ToList());
+        public void Remove(Yorum entity) => Items.Remove(entity);
+        public Task<bool> SaveChangesAsync() => Task.FromResult(true);
+        public void Update(Yorum entity) { }
     }
 }

@@ -25,17 +25,20 @@ namespace API.Controllers
         };
 
         private readonly IKategoriService _kategoriService;
+        private readonly IUrunService _urunService;
         private readonly IWebHostEnvironment _environment;
         private readonly VerificationOptions _verificationOptions;
         private readonly CloudinaryOptions _cloudinaryOptions;
 
         public AppController(
             IKategoriService kategoriService,
+            IUrunService urunService,
             IWebHostEnvironment environment,
             IOptions<VerificationOptions> verificationOptions,
             IOptions<CloudinaryOptions> cloudinaryOptions)
         {
             _kategoriService = kategoriService;
+            _urunService = urunService;
             _environment = environment;
             _verificationOptions = verificationOptions.Value;
             _cloudinaryOptions = cloudinaryOptions.Value;
@@ -45,6 +48,7 @@ namespace API.Controllers
         public async Task<IActionResult> Bootstrap()
         {
             var categories = await _kategoriService.GetAllDtosAsync();
+            var locations = await _urunService.GetActiveLocationsAsync();
             var devVerificationEnabled = _environment.IsDevelopment();
 
             var data = new AppBootstrapDto
@@ -52,6 +56,8 @@ namespace API.Controllers
                 Environment = _environment.EnvironmentName,
                 Roles = new[] { ApplicationRoles.Admin, ApplicationRoles.Alici, ApplicationRoles.Satici },
                 Categories = categories.ToArray(),
+                Cities = locations.Select(l => l.Sehir).ToArray(),
+                Locations = locations,
                 ProductSorts = ProductSorts,
                 Features = new AppFeatureFlagsDto
                 {

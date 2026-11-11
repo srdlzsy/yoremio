@@ -84,6 +84,7 @@ namespace Infrastructure.Repositories
                                .Include(u => u.Videolar)
                                .Include(u => u.Kategori)
                                .Include(u => u.Puanlar)
+                               .ThenInclude(p => p.Kullanici)
                                .Include(u => u.Favoriler)
                                .Include(u => u.Satici)
                                .ThenInclude(s => s.Kullanici)
@@ -101,6 +102,7 @@ namespace Infrastructure.Repositories
                                .Include(u => u.Resimler)
                                .Include(u => u.Kategori)
                                .Include(u => u.Puanlar)
+                               .ThenInclude(p => p.Kullanici)
                                .Include(u => u.Favoriler)
                                .Include(u => u.Satici)
                                .ThenInclude(s => s.Kullanici)
@@ -125,6 +127,7 @@ namespace Infrastructure.Repositories
                 .Include(u => u.Videolar)
                 .Include(u => u.Kategori)
                 .Include(u => u.Puanlar)
+                .ThenInclude(p => p.Kullanici)
                 .Include(u => u.Favoriler)
                 .Include(u => u.Satici)
                 .ThenInclude(s => s.Kullanici)
@@ -186,9 +189,11 @@ namespace Infrastructure.Repositories
             if (query.SadeceDogrulanmisSatici)
             {
                 urunler = urunler.Where(u =>
-                    u.Satici.Kullanici != null &&
-                    u.Satici.Kullanici.EmailConfirmed &&
-                    !string.IsNullOrWhiteSpace(u.Satici.VergiNo));
+                    u.Satici.AdminDogrulandiMi == true ||
+                    (u.Satici.AdminDogrulandiMi == null &&
+                     u.Satici.Kullanici != null &&
+                     u.Satici.Kullanici.EmailConfirmed &&
+                     !string.IsNullOrWhiteSpace(u.Satici.VergiNo)));
             }
 
             if (query.MinOrtalamaPuan.HasValue)
@@ -228,9 +233,16 @@ namespace Infrastructure.Repositories
             };
         }
 
-        public async Task<IReadOnlyCollection<Urun>> GetRecommendedAsync(IReadOnlyCollection<int> kategoriIdleri, IReadOnlyCollection<int> haricUrunIdleri, int take)
+        public async Task<IReadOnlyCollection<Urun>> GetRecommendedAsync(
+            IReadOnlyCollection<int> kategoriIdleri,
+            IReadOnlyCollection<int> haricUrunIdleri,
+            int take,
+            string? tercihEdilenSehir = null,
+            string? tercihEdilenIlce = null)
         {
             var effectiveTake = take <= 0 ? 12 : take;
+            var normalizedSehir = string.IsNullOrWhiteSpace(tercihEdilenSehir) ? null : tercihEdilenSehir.Trim().ToLower();
+            var normalizedIlce = string.IsNullOrWhiteSpace(tercihEdilenIlce) ? null : tercihEdilenIlce.Trim().ToLower();
 
             var query = _dbSet
                 .AsNoTracking()
@@ -238,11 +250,14 @@ namespace Infrastructure.Repositories
                 .Include(u => u.Videolar)
                 .Include(u => u.Kategori)
                 .Include(u => u.Puanlar)
+                .ThenInclude(p => p.Kullanici)
                 .Include(u => u.Favoriler)
                 .Include(u => u.Satici)
                 .ThenInclude(s => s.Kullanici)
                 .Include(u => u.Yorumlar)
+                .ThenInclude(y => y.YorumYapanKullanici)
                 .Where(u => u.AktifMi)
+                .AsSplitQuery()
                 .AsQueryable();
 
             if (kategoriIdleri.Count > 0)
@@ -255,11 +270,7 @@ namespace Infrastructure.Repositories
                 query = query.Where(u => !haricUrunIdleri.Contains(u.Id));
             }
 
-            var result = await query
-                .OrderByDescending(u => u.Puanlar.Any() ? u.Puanlar.Average(p => p.PuanDegeri) : 0)
-                .ThenByDescending(u => u.Yorumlar.Count)
-                .ThenByDescending(u => u.Favoriler.Count)
-                .ThenByDescending(u => u.OlusturmaTarihi)
+            var result = await OrderRecommended(query, normalizedSehir, normalizedIlce)
                 .Take(effectiveTake)
                 .ToListAsync();
 
@@ -275,26 +286,61 @@ namespace Infrastructure.Repositories
                 alinanIdler.Add(id);
             }
 
-            var fallback = await _dbSet
+            var fallbackQuery = _dbSet
                 .AsNoTracking()
                 .Include(u => u.Resimler)
                 .Include(u => u.Videolar)
                 .Include(u => u.Kategori)
                 .Include(u => u.Puanlar)
+                .ThenInclude(p => p.Kullanici)
                 .Include(u => u.Favoriler)
                 .Include(u => u.Satici)
                 .ThenInclude(s => s.Kullanici)
                 .Include(u => u.Yorumlar)
+                .ThenInclude(y => y.YorumYapanKullanici)
                 .Where(u => u.AktifMi && !alinanIdler.Contains(u.Id))
-                .OrderByDescending(u => u.Puanlar.Any() ? u.Puanlar.Average(p => p.PuanDegeri) : 0)
-                .ThenByDescending(u => u.Yorumlar.Count)
-                .ThenByDescending(u => u.Favoriler.Count)
-                .ThenByDescending(u => u.OlusturmaTarihi)
+                .AsSplitQuery();
+
+            var fallback = await OrderRecommended(fallbackQuery, normalizedSehir, normalizedIlce)
                 .Take(eksik)
                 .ToListAsync();
 
             result.AddRange(fallback);
             return result;
+        }
+
+        public async Task<IReadOnlyCollection<(string Sehir, string? Ilce)>> GetActiveSellerLocationsAsync()
+        {
+            var rows = await _dbSet
+                .AsNoTracking()
+                .Where(u => u.AktifMi && u.Satici != null && u.Satici.Sehir != null && u.Satici.Sehir != string.Empty)
+                .Select(u => new { Sehir = u.Satici.Sehir!, u.Satici.Ilce })
+                .Distinct()
+                .ToListAsync();
+
+            return rows
+                .Select(x => (x.Sehir.Trim(), string.IsNullOrWhiteSpace(x.Ilce) ? null : x.Ilce.Trim()))
+                .ToList();
+        }
+
+        private static IOrderedQueryable<Urun> OrderRecommended(IQueryable<Urun> query, string? normalizedSehir, string? normalizedIlce)
+        {
+            if (normalizedSehir == null)
+            {
+                return query
+                    .OrderByDescending(u => u.Puanlar.Any() ? u.Puanlar.Average(p => p.PuanDegeri) : 0)
+                    .ThenByDescending(u => u.Yorumlar.Count(y => y.AktifMi))
+                    .ThenByDescending(u => u.Favoriler.Count)
+                    .ThenByDescending(u => u.OlusturmaTarihi);
+            }
+
+            return query
+                .OrderByDescending(u => normalizedIlce != null && u.Satici.Ilce != null && u.Satici.Ilce.ToLower() == normalizedIlce ? 1 : 0)
+                .ThenByDescending(u => u.Satici.Sehir != null && u.Satici.Sehir.ToLower() == normalizedSehir ? 1 : 0)
+                .ThenByDescending(u => u.Puanlar.Any() ? u.Puanlar.Average(p => p.PuanDegeri) : 0)
+                .ThenByDescending(u => u.Yorumlar.Count(y => y.AktifMi))
+                .ThenByDescending(u => u.Favoriler.Count)
+                .ThenByDescending(u => u.OlusturmaTarihi);
         }
     }
 }

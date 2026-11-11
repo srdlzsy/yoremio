@@ -3,6 +3,7 @@ using Application.Interfaces;
 using Domain.Constants;
 using Domain.Entities;
 using Domain.Interfaces;
+using Domain.Models;
 
 namespace Infrastructure.Services
 {
@@ -83,16 +84,40 @@ namespace Infrastructure.Services
             return MapTalepDto(talep);
         }
 
-        public async Task<IReadOnlyCollection<TalepDto>> GetAliciTalepleriAsync(string aliciId)
+        public async Task<IReadOnlyCollection<TalepDto>> GetAliciTalepleriAsync(string aliciId, string? durum = null)
         {
-            var talepler = await _talepRepository.GetAliciTalepleriAsync(aliciId);
+            var talepler = await _talepRepository.GetAliciTalepleriAsync(aliciId, durum);
             return talepler.Select(MapTalepDto).ToList();
         }
 
-        public async Task<IReadOnlyCollection<TalepDto>> GetSaticiTalepleriAsync(string saticiId)
+        public async Task<PagedResult<TalepDto>> GetAliciTalepleriPagedAsync(string aliciId, string? durum, int page, int pageSize)
         {
-            var talepler = await _talepRepository.GetSaticiTalepleriAsync(saticiId);
+            var paged = await _talepRepository.GetAliciTalepleriPagedAsync(aliciId, durum, page, pageSize);
+            return new PagedResult<TalepDto>
+            {
+                Items = paged.Items.Select(MapTalepDto).ToArray(),
+                Page = paged.Page,
+                PageSize = paged.PageSize,
+                TotalCount = paged.TotalCount
+            };
+        }
+
+        public async Task<IReadOnlyCollection<TalepDto>> GetSaticiTalepleriAsync(string saticiId, string? durum = null)
+        {
+            var talepler = await _talepRepository.GetSaticiTalepleriAsync(saticiId, durum);
             return talepler.Select(MapTalepDto).ToList();
+        }
+
+        public async Task<PagedResult<TalepDto>> GetSaticiTalepleriPagedAsync(string saticiId, string? durum, int page, int pageSize)
+        {
+            var paged = await _talepRepository.GetSaticiTalepleriPagedAsync(saticiId, durum, page, pageSize);
+            return new PagedResult<TalepDto>
+            {
+                Items = paged.Items.Select(MapTalepDto).ToArray(),
+                Page = paged.Page,
+                PageSize = paged.PageSize,
+                TotalCount = paged.TotalCount
+            };
         }
 
         public async Task<TalepTeklifDto> TeklifVerAsync(int talepId, string saticiId, TalepTeklifOlusturDto dto)
@@ -303,6 +328,7 @@ namespace Infrastructure.Services
             {
                 Id = talep.Id,
                 AliciId = talep.AliciId,
+                AliciAdi = talep.Alici?.UserName ?? talep.Alici?.Email,
                 UrunId = talep.UrunId,
                 UrunAdi = talep.Urun?.Adi,
                 UrunResimUrl = talep.Urun?.Resimler?.FirstOrDefault()?.Url,
@@ -315,6 +341,7 @@ namespace Infrastructure.Services
                 Not = talep.Not,
                 Durum = talep.Durum,
                 OlusturmaTarihi = talep.OlusturmaTarihi,
+                GuncellemeTarihi = talep.GuncellemeTarihi,
                 Teklifler = talep.Teklifler
                     .OrderByDescending(t => t.OlusturmaTarihi)
                     .Select(MapTalepTeklifDto)

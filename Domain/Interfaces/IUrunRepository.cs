@@ -9,6 +9,7 @@ namespace Domain.Interfaces
         Task<Urun?> GetByIdForUpdateAsync(int id);
         Task<Urun?> GetByIdWithRelationsAsync(int id);
         Task<PagedResult<Urun>> QueryAsync(UrunQuery query);
-        Task<IReadOnlyCollection<Urun>> GetRecommendedAsync(IReadOnlyCollection<int> kategoriIdleri, IReadOnlyCollection<int> haricUrunIdleri, int take);
+        Task<IReadOnlyCollection<Urun>> GetRecommendedAsync(IReadOnlyCollection<int> kategoriIdleri, IReadOnlyCollection<int> haricUrunIdleri, int take, string? tercihEdilenSehir = null, string? tercihEdilenIlce = null);
+        Task<IReadOnlyCollection<(string Sehir, string? Ilce)>> GetActiveSellerLocationsAsync();
     }
 }

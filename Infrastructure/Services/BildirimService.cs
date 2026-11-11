@@ -11,10 +11,14 @@ namespace Infrastructure.Services
         private const int MaxMessageLength = 500;
 
         private readonly IBildirimRepository _bildirimRepository;
+        private readonly IBildirimRealtimeDispatcher? _realtimeDispatcher;
 
-        public BildirimService(IBildirimRepository bildirimRepository)
+        public BildirimService(
+            IBildirimRepository bildirimRepository,
+            IBildirimRealtimeDispatcher? realtimeDispatcher = null)
         {
             _bildirimRepository = bildirimRepository;
+            _realtimeDispatcher = realtimeDispatcher;
         }
 
         public async Task<BildirimDto> BildirimOlusturAsync(BildirimOlusturDto dto)
@@ -58,7 +62,23 @@ namespace Infrastructure.Services
 
             await _bildirimRepository.AddAsync(bildirim);
             await _bildirimRepository.SaveChangesAsync();
-            return MapToDto(bildirim);
+
+            var dtoResult = MapToDto(bildirim);
+            if (_realtimeDispatcher != null)
+            {
+                try
+                {
+                    var unreadCount = await _bildirimRepository.GetOkunmamisSayisiAsync(kullaniciId);
+                    dtoResult.OkunmamisSayisi = unreadCount;
+                    await _realtimeDispatcher.DispatchNotificationAsync(kullaniciId, dtoResult, unreadCount);
+                }
+                catch
+                {
+                    // SignalR yayini basarisiz olsa bile bildirim DB'ye kaydedilmis olarak doner.
+                }
+            }
+
+            return dtoResult;
         }
 
         public async Task<BildirimPagedResultDto> GetBildirimlerAsync(string kullaniciId, bool sadeceOkunmamis, int page, int pageSize)
@@ -94,13 +114,42 @@ namespace Infrastructure.Services
 
             bildirim.OkunmaTarihi ??= DateTime.UtcNow;
             await _bildirimRepository.SaveChangesAsync();
-            return MapToDto(bildirim);
+
+            var dtoResult = MapToDto(bildirim);
+            if (_realtimeDispatcher != null)
+            {
+                try
+                {
+                    var unreadCount = await _bildirimRepository.GetOkunmamisSayisiAsync(kullaniciId);
+                    dtoResult.OkunmamisSayisi = unreadCount;
+                    await _realtimeDispatcher.DispatchUnreadCountAsync(kullaniciId, unreadCount);
+                }
+                catch
+                {
+                    // Real-time sayac guncellemesi best-effort calisir.
+                }
+            }
+
+            return dtoResult;
         }
 
         public async Task<int> TumunuOkunduIsaretleAsync(string kullaniciId)
         {
             kullaniciId = ValidateUserId(kullaniciId);
-            return await _bildirimRepository.TumunuOkunduIsaretleAsync(kullaniciId, DateTime.UtcNow);
+            var updated = await _bildirimRepository.TumunuOkunduIsaretleAsync(kullaniciId, DateTime.UtcNow);
+            if (_realtimeDispatcher != null)
+            {
+                try
+                {
+                    await _realtimeDispatcher.DispatchUnreadCountAsync(kullaniciId, 0);
+                }
+                catch
+                {
+                    // Real-time sayac guncellemesi best-effort calisir.
+                }
+            }
+
+            return updated;
         }
 
         private static BildirimDto MapToDto(Bildirim bildirim)

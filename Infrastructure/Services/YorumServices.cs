@@ -10,12 +10,18 @@ namespace Infrastructure.Services
         private readonly IYorumRepository _yorumRepository;
         private readonly IUrunRepository _urunRepository;
         private readonly ITalepRepository _talepRepository;
+        private readonly IPuanRepository? _puanRepository;
 
-        public YorumServices(IYorumRepository yorumRepository, IUrunRepository urunRepository, ITalepRepository talepRepository)
+        public YorumServices(
+            IYorumRepository yorumRepository,
+            IUrunRepository urunRepository,
+            ITalepRepository talepRepository,
+            IPuanRepository? puanRepository = null)
         {
             _yorumRepository = yorumRepository;
             _urunRepository = urunRepository;
             _talepRepository = talepRepository;
+            _puanRepository = puanRepository;
         }
 
         public async Task<YorumDto> YorumEkleAsync(YorumEkleDto dto, string kullaniciId)
@@ -89,13 +95,23 @@ namespace Infrastructure.Services
                 return new YorumYetkisiDto
                 {
                     YorumYapabilir = false,
+                    Puanlayabilir = false,
                     Sebep = "Yorum yapabilmek icin bu urunle ilgili kabul edilmis bir talebiniz olmalidir."
                 };
             }
 
+            int? mevcutPuan = null;
+            if (_puanRepository != null)
+            {
+                var existingPuan = await _puanRepository.GetPuanByUrunIdAndKullaniciIdAsync(urunId, kullaniciId);
+                mevcutPuan = existingPuan?.PuanDegeri;
+            }
+
             return new YorumYetkisiDto
             {
-                YorumYapabilir = true
+                YorumYapabilir = true,
+                Puanlayabilir = true,
+                MevcutPuan = mevcutPuan
             };
         }
 

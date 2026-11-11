@@ -9,14 +9,16 @@ namespace API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = ApplicationRoles.Satici)]
+    [Authorize]
     public class ProfilController : ControllerBase
     {
         private readonly ISaticiProfiliService _saticiProfiliService;
+        private readonly IAliciProfiliService _aliciProfiliService;
 
-        public ProfilController(ISaticiProfiliService saticiProfiliService)
+        public ProfilController(ISaticiProfiliService saticiProfiliService, IAliciProfiliService aliciProfiliService)
         {
             _saticiProfiliService = saticiProfiliService;
+            _aliciProfiliService = aliciProfiliService;
         }
 
         [AllowAnonymous]
@@ -27,6 +29,7 @@ namespace API.Controllers
             return Ok(ApiResponse<IReadOnlyCollection<SaticiOzetDto>>.Ok(saticilar, "One cikan saticilar getirildi.", HttpContext.TraceIdentifier));
         }
 
+        [Authorize(Roles = ApplicationRoles.Satici)]
         [HttpGet("satici")]
         public async Task<IActionResult> GetSaticiProfil()
         {
@@ -45,13 +48,52 @@ namespace API.Controllers
             return Ok(ApiResponse<SaticiProfilDto>.Ok(satici, "Profil getirildi.", HttpContext.TraceIdentifier));
         }
 
+        [Authorize(Roles = ApplicationRoles.Satici)]
         [HttpPut("satici")]
-        public async Task<IActionResult> UpdateSaticiProfil([FromBody] SaticiProfilGuncelleDto dto)
+        public async Task<IActionResult> UpdateSaticiProfil()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized(ApiResponse<object>.Fail("Kullanıcı doğrulanamadı.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            SaticiProfilGuncelleDto dto;
+            if (Request.HasFormContentType)
+            {
+                var form = await Request.ReadFormAsync();
+                dto = new SaticiProfilGuncelleDto
+                {
+                    MagazaAdi = form.TryGetValue("magazaAdi", out var magazaAdi) ? magazaAdi.ToString() : null,
+                    Adres = form.TryGetValue("adres", out var adres) ? adres.ToString() : null,
+                    Sehir = form.TryGetValue("sehir", out var sehir) ? sehir.ToString() : null,
+                    Ilce = form.TryGetValue("ilce", out var ilce) ? ilce.ToString() : null,
+                    Aciklama = form.TryGetValue("aciklama", out var aciklama) ? aciklama.ToString() : null,
+                    PhoneNumber = form.TryGetValue("phoneNumber", out var phoneNumber) ? phoneNumber.ToString() : null,
+                    KapakResim = form.Files.GetFile("kapakResim") ?? form.Files.FirstOrDefault()
+                };
+            }
+            else
+            {
+                dto = await Request.ReadFromJsonAsync<SaticiProfilGuncelleDto>() ?? new SaticiProfilGuncelleDto();
+            }
+
+            if (!TryValidateModel(dto))
+            {
+                var errors = ModelState
+                    .Where(x => x.Value?.Errors.Count > 0)
+                    .ToDictionary(
+                        x => x.Key,
+                        x => x.Value!.Errors.Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Geçersiz değer." : e.ErrorMessage));
+
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Doğrulama hatası oluştu.",
+                    data = (object?)null,
+                    errors,
+                    traceId = HttpContext.TraceIdentifier
+                });
             }
 
             var satici = await _saticiProfiliService.UpdateProfilAsync(userId, dto);
@@ -61,6 +103,44 @@ namespace API.Controllers
             }
 
             return Ok(ApiResponse<SaticiProfilDto>.Ok(satici, "Profil güncellendi.", HttpContext.TraceIdentifier));
+        }
+
+        [Authorize(Roles = ApplicationRoles.Alici)]
+        [HttpGet("alici")]
+        public async Task<IActionResult> GetAliciProfil()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanıcı doğrulanamadı.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var alici = await _aliciProfiliService.GetAliciProfilDtoAsync(userId);
+            if (alici == null)
+            {
+                return NotFound(ApiResponse<object>.Fail("Alıcı profili bulunamadı.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            return Ok(ApiResponse<AliciProfilDto>.Ok(alici, "Alıcı profili getirildi.", HttpContext.TraceIdentifier));
+        }
+
+        [Authorize(Roles = ApplicationRoles.Alici)]
+        [HttpPut("alici")]
+        public async Task<IActionResult> UpdateAliciProfil([FromBody] AliciProfilGuncelleDto dto)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanıcı doğrulanamadı.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var alici = await _aliciProfiliService.UpdateProfilAsync(userId, dto);
+            if (alici == null)
+            {
+                return NotFound(ApiResponse<object>.Fail("Alıcı profili bulunamadı.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            return Ok(ApiResponse<AliciProfilDto>.Ok(alici, "Alıcı profili güncellendi.", HttpContext.TraceIdentifier));
         }
 
         [AllowAnonymous]

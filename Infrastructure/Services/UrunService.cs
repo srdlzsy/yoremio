@@ -15,19 +15,22 @@ namespace Infrastructure.Services
         private readonly ISaticiProfiliRepository _saticiRepository;
         private readonly IKategoriRepository _kategoriRepository;
         private readonly IDosyaKaydetService _dosyaKaydetService;
+        private readonly IAliciProfiliRepository? _aliciProfiliRepository;
 
         public UrunService(
             IUrunRepository urunRepository,
             IUrunFavoriRepository urunFavoriRepository,
             ISaticiProfiliRepository saticiRepository,
             IKategoriRepository kategoriRepository,
-            IDosyaKaydetService dosyaKaydetService)
+            IDosyaKaydetService dosyaKaydetService,
+            IAliciProfiliRepository? aliciProfiliRepository = null)
         {
             _urunRepository = urunRepository;
             _urunFavoriRepository = urunFavoriRepository;
             _saticiRepository = saticiRepository;
             _kategoriRepository = kategoriRepository;
             _dosyaKaydetService = dosyaKaydetService;
+            _aliciProfiliRepository = aliciProfiliRepository;
         }
 
         public async Task<Urun> UrunEkleAsync(string saticiId, UrunEkleDto dto)
@@ -79,12 +82,58 @@ namespace Infrastructure.Services
             };
         }
 
+        public async Task<IReadOnlyCollection<AppLocationDto>> GetActiveLocationsAsync()
+        {
+            var rawLocations = await _urunRepository.GetActiveSellerLocationsAsync();
+
+            return rawLocations
+                .GroupBy(x => x.Sehir, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase)
+                .Select(g => new AppLocationDto
+                {
+                    Sehir = g.First().Sehir,
+                    Ilceler = g
+                        .Select(x => x.Ilce)
+                        .Where(ilce => !string.IsNullOrWhiteSpace(ilce))
+                        .Select(ilce => ilce!)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(ilce => ilce, StringComparer.CurrentCultureIgnoreCase)
+                        .ToArray()
+                })
+                .ToArray();
+        }
+
         public async Task<IEnumerable<UrunDto>> GetOnerilenUrunlerAsync(string kullaniciId, int take)
         {
             var effectiveTake = take <= 0 ? 12 : Math.Min(take, 50);
             var favoriUrunIdleri = await _urunFavoriRepository.GetFavoriUrunIdleriAsync(kullaniciId);
-            var kategoriIdleri = await _urunFavoriRepository.GetKullaniciFavoriKategoriIdleriAsync(kullaniciId, 3);
-            var urunler = await _urunRepository.GetRecommendedAsync(kategoriIdleri, favoriUrunIdleri, effectiveTake);
+            var kategoriIdleri = (await _urunFavoriRepository.GetKullaniciFavoriKategoriIdleriAsync(kullaniciId, 3)).ToList();
+
+            string? sehir = null;
+            string? ilce = null;
+            if (_aliciProfiliRepository != null)
+            {
+                var aliciProfili = await _aliciProfiliRepository.GetWithUserByIdAsync(kullaniciId);
+                if (aliciProfili != null)
+                {
+                    sehir = aliciProfili.Sehir;
+                    ilce = aliciProfili.Ilce;
+
+                    if (kategoriIdleri.Count == 0 && !string.IsNullOrWhiteSpace(aliciProfili.FavoriKategori))
+                    {
+                        var favoriKategoriAdi = aliciProfili.FavoriKategori.Trim();
+                        var kategoriler = await _kategoriRepository.GetAllAsync();
+                        var matched = kategoriler.FirstOrDefault(k =>
+                            string.Equals(k.Adi, favoriKategoriAdi, StringComparison.OrdinalIgnoreCase));
+                        if (matched != null)
+                        {
+                            kategoriIdleri.Add(matched.Id);
+                        }
+                    }
+                }
+            }
+
+            var urunler = await _urunRepository.GetRecommendedAsync(kategoriIdleri, favoriUrunIdleri, effectiveTake, sehir, ilce);
 
             return urunler.Select(MapToDto);
         }
@@ -308,29 +357,32 @@ namespace Infrastructure.Services
                 SaticiMagazaAdi = urun.Satici?.MagazaAdi,
                 SaticiSehir = urun.Satici?.Sehir,
                 SaticiIlce = urun.Satici?.Ilce,
-                SaticiDogrulanmis = urun.Satici?.Kullanici is not null
-                    && urun.Satici.Kullanici.EmailConfirmed,
+                SaticiDogrulanmis = SaticiProfili.IsVerified(urun.Satici),
                 OrtalamaPuan = urun.Puanlar.Count == 0 ? 0 : Math.Round(urun.Puanlar.Average(p => p.PuanDegeri), 1),
                 ToplamPuan = urun.Puanlar.Count,
-                ToplamYorum = urun.Yorumlar.Count,
+                ToplamYorum = urun.Yorumlar.Count(y => y.AktifMi),
                 ToplamFavori = urun.Favoriler.Count,
                 Puanlar = urun.Puanlar.Select(p => new PuanDto
                 {
                     Id = p.Id,
                     UrunId = p.UrunId,
                     KullaniciId = p.KullaniciId,
+                    KullaniciAdi = p.Kullanici?.UserName,
                     PuanDegeri = p.PuanDegeri,
                     PuanTarihi = p.PuanTarihi
                 }).ToList(),
-                Yorumlar = urun.Yorumlar.Select(y => new YorumDto
-                {
-                    Id = y.Id,
-                    UrunId = y.UrunId,
-                    Icerik = y.Icerik,
-                    Tarih = y.Tarih,
-                    KullaniciId = y.YorumYapanKullaniciId,
-                    KullaniciAdi = y.YorumYapanKullanici?.UserName
-                }).ToList(),
+                Yorumlar = urun.Yorumlar
+                    .Where(y => y.AktifMi)
+                    .OrderByDescending(y => y.Tarih)
+                    .Select(y => new YorumDto
+                    {
+                        Id = y.Id,
+                        UrunId = y.UrunId,
+                        Icerik = y.Icerik,
+                        Tarih = y.Tarih,
+                        KullaniciId = y.YorumYapanKullaniciId,
+                        KullaniciAdi = y.YorumYapanKullanici?.UserName
+                    }).ToList(),
                 Resimler = urun.Resimler?.Select(r => new UrunResimDto { Id = r.Id, Url = r.Url }).ToList(),
                 Videolar = urun.Videolar?.Select(v => new UrunVideoDto { Id = v.Id, Url = v.Url }).ToList()
             };

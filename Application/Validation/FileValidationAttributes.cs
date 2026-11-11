@@ -15,17 +15,31 @@ namespace Application.Validation
 
         protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
         {
+            if (value is IFormFile singleFile)
+            {
+                return ValidateFile(singleFile);
+            }
+
             if (value is not IEnumerable<IFormFile> files)
                 return ValidationResult.Success;
 
             foreach (var file in files)
             {
-                if (_allowedPrefixes.All(prefix => !file.ContentType.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
-                    return new ValidationResult(ErrorMessage);
-
-                if (!HasAllowedExtensionAndSignature(file))
-                    return new ValidationResult(ErrorMessage);
+                var result = ValidateFile(file);
+                if (result != ValidationResult.Success)
+                    return result;
             }
+
+            return ValidationResult.Success;
+        }
+
+        private ValidationResult? ValidateFile(IFormFile file)
+        {
+            if (_allowedPrefixes.All(prefix => !file.ContentType.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+                return new ValidationResult(ErrorMessage);
+
+            if (!HasAllowedExtensionAndSignature(file))
+                return new ValidationResult(ErrorMessage);
 
             return ValidationResult.Success;
         }
@@ -104,6 +118,13 @@ namespace Application.Validation
 
         protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
         {
+            if (value is IFormFile singleFile)
+            {
+                return singleFile.Length > _maxBytes
+                    ? new ValidationResult(ErrorMessage)
+                    : ValidationResult.Success;
+            }
+
             if (value is not IEnumerable<IFormFile> files)
                 return ValidationResult.Success;
 

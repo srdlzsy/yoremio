@@ -1,4 +1,4 @@
-﻿using Domain.Entities;
+using Domain.Entities;
 using Domain.Interfaces;
 using Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -82,7 +82,10 @@ namespace Infrastructure.Repositories
         public async Task<IEnumerable<Puan>> GetPuanlarByUrunIdAsync(int urunId)
         {
             return await _yoremiocontext.Puanlar
+                .AsNoTracking()
+                .Include(p => p.Kullanici)
                 .Where(p => p.UrunId == urunId)
+                .OrderByDescending(p => p.PuanTarihi)
                 .ToListAsync();
         }
 
