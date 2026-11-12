@@ -27,6 +27,33 @@ namespace Infrastructure.Repositories
             var effectivePage = page < 1 ? 1 : page;
             var effectivePageSize = pageSize < 1 ? 12 : Math.Min(pageSize, 100);
 
+            var query = BuildFilterQuery(hedefSehir, menseiSehir, q, durum);
+
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .Skip((effectivePage - 1) * effectivePageSize)
+                .Take(effectivePageSize)
+                .ToListAsync();
+
+            return new PagedResult<OrtakAlim>
+            {
+                Items = items,
+                Page = effectivePage,
+                PageSize = effectivePageSize,
+                TotalCount = totalCount
+            };
+        }
+
+        public async Task<IReadOnlyCollection<OrtakAlim>> GetMatchingOpenGroupBuysAsync(string? q, string? hedefSehir, int take = 5)
+        {
+            var effectiveTake = take <= 0 ? 5 : Math.Min(take, 20);
+            return await BuildMatchingOpenGroupBuysQuery(q, hedefSehir)
+                .Take(effectiveTake)
+                .ToListAsync();
+        }
+
+        internal IQueryable<OrtakAlim> BuildFilterQuery(string? hedefSehir, string? menseiSehir, string? q, string? durum)
+        {
             var query = BuildDetailsQuery(asNoTracking: true);
 
             if (!string.IsNullOrWhiteSpace(hedefSehir))
@@ -56,28 +83,13 @@ namespace Infrastructure.Repositories
                 query = query.Where(o => o.Durum == normalizedDurum);
             }
 
-            query = query
+            return query
                 .OrderByDescending(o => o.Durum == OrtakAlimDurumlari.Acik)
                 .ThenBy(o => o.SonKatilimTarihi);
-
-            var totalCount = await query.CountAsync();
-            var items = await query
-                .Skip((effectivePage - 1) * effectivePageSize)
-                .Take(effectivePageSize)
-                .ToListAsync();
-
-            return new PagedResult<OrtakAlim>
-            {
-                Items = items,
-                Page = effectivePage,
-                PageSize = effectivePageSize,
-                TotalCount = totalCount
-            };
         }
 
-        public async Task<IReadOnlyCollection<OrtakAlim>> GetMatchingOpenGroupBuysAsync(string? q, string? hedefSehir, int take = 5)
+        internal IQueryable<OrtakAlim> BuildMatchingOpenGroupBuysQuery(string? q, string? hedefSehir)
         {
-            var effectiveTake = take <= 0 ? 5 : Math.Min(take, 20);
             var query = BuildDetailsQuery(asNoTracking: true)
                 .Where(o => (o.Durum == OrtakAlimDurumlari.Acik || o.Durum == OrtakAlimDurumlari.HedefTamamlandi)
                             && o.SonKatilimTarihi > DateTime.UtcNow);
@@ -97,11 +109,9 @@ namespace Infrastructure.Repositories
                     (o.Urun != null && o.Urun.Adi.ToLower().Contains(term)));
             }
 
-            return await query
+            return query
                 .OrderByDescending(o => o.Katilimlar.Count(k => k.AktifMi))
-                .ThenBy(o => o.SonKatilimTarihi)
-                .Take(effectiveTake)
-                .ToListAsync();
+                .ThenBy(o => o.SonKatilimTarihi);
         }
 
         public async Task<OrtakAlimKatilim?> GetKatilimAsync(int ortakAlimId, string aliciId)
@@ -115,7 +125,7 @@ namespace Infrastructure.Repositories
             await _dbContext.OrtakAlimKatilimlari.AddAsync(katilim);
         }
 
-        private IQueryable<OrtakAlim> BuildDetailsQuery(bool asNoTracking)
+        internal IQueryable<OrtakAlim> BuildDetailsQuery(bool asNoTracking)
         {
             var query = _dbContext.OrtakAlimlar.AsQueryable();
             if (asNoTracking)

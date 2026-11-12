@@ -4,13 +4,9 @@ using Domain.Constants;
 using Domain.Entities;
 using Domain.Interfaces;
 using Domain.Models;
-using Infrastructure.Persistence;
-using Infrastructure.Repositories;
 using Infrastructure.Services;
 using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
-using System.Reflection;
 using System.Text;
 
 internal static class ServiceBehaviorTests
@@ -42,8 +38,7 @@ internal static class ServiceBehaviorTests
             ("OrtakAlimService alici onerisi satici onayi ve hedef katilimciya ulasmayi yonetmeli", OrtakAlimService_Should_SupportProposalApprovalAndParticipantTarget),
             ("TalepService suresi dolan talebe teklif reddetmeli ve kabulde idempotent calismali", TalepService_Should_RejectExpiredOfferDeadline_AndBeIdempotentOnAccept),
             ("ChatService urun ve talep baglamini mesaj ve konusma ozetinde saklamali", ChatService_Should_PersistProductAndDemandContext),
-            ("PlanliGonderimService sehrime gelen urunler sevkiyatini olusturup takipcilere bildirmeli", PlanliGonderimService_Should_CreateAndNotifyFollowers),
-            ("EF Core repository Include agaclari NavigationBaseIncludeIgnored hatasi vermeden derlenmeli", EfCoreRepositories_IncludeTrees_Should_CompileWithoutNavigationWarnings)
+            ("PlanliGonderimService sehrime gelen urunler sevkiyatini olusturup takipcilere bildirmeli", PlanliGonderimService_Should_CreateAndNotifyFollowers)
         };
     }
 
@@ -1476,37 +1471,5 @@ internal static class ServiceBehaviorTests
         {
             throw new InvalidOperationException("Bursa hedef sehrine planli gonderim listelenmeliydi.");
         }
-    }
-
-    private static Task EfCoreRepositories_IncludeTrees_Should_CompileWithoutNavigationWarnings()
-    {
-        var options = new DbContextOptionsBuilder<YoremioContext>()
-            .UseNpgsql("Host=localhost;Database=yoremio_query_check;Username=postgres;Password=postgres")
-            .Options;
-
-        using var db = new YoremioContext(options);
-        var talepRepo = new TalepRepository(db);
-        var buildDetails = typeof(TalepRepository).GetMethod("BuildDetailsQuery", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("TalepRepository.BuildDetailsQuery bulunamadi.");
-
-        var trackingQuery = (IQueryable<Talep>)(buildDetails.Invoke(talepRepo, new object[] { false })
-            ?? throw new InvalidOperationException("Tracking query null dondu."));
-        var noTrackingQuery = (IQueryable<Talep>)(buildDetails.Invoke(talepRepo, new object[] { true })
-            ?? throw new InvalidOperationException("NoTracking query null dondu."));
-
-        _ = trackingQuery.Where(t => t.Id == 1).ToQueryString();
-        _ = noTrackingQuery.Where(t => t.AliciId == "buyer-1").ToQueryString();
-
-        _ = db.Set<TalepTeklif>()
-            .Include(t => t.Talep).ThenInclude(talep => talep!.Urun)
-            .Include(t => t.Talep).ThenInclude(talep => talep!.Kategori)
-            .Include(t => t.Talep).ThenInclude(talep => talep!.Alici)
-            .Include(t => t.Talep).ThenInclude(talep => talep!.Eslesmeler)
-            .Include(t => t.Satici).ThenInclude(user => user!.SaticiProfili)
-            .AsSplitQuery()
-            .Where(t => t.Id == 1)
-            .ToQueryString();
-
-        return Task.CompletedTask;
     }
 }

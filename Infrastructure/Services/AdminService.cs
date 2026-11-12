@@ -24,6 +24,40 @@ namespace Infrastructure.Services
             var page = query.Page < 1 ? 1 : query.Page;
             var pageSize = query.PageSize < 1 ? 20 : Math.Min(query.PageSize, 100);
 
+            var usersQuery = BuildKullanicilarQuery(query);
+
+            var totalCount = await usersQuery.CountAsync();
+            var users = await usersQuery
+                .OrderByDescending(u => u.SaticiProfili != null)
+                .ThenBy(u => u.Email)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var userIds = users.Select(u => u.Id).ToList();
+            var rolePairs = await _context.UserRoles
+                .AsNoTracking()
+                .Where(ur => userIds.Contains(ur.UserId))
+                .Join(_context.Roles.AsNoTracking(), ur => ur.RoleId, r => r.Id, (ur, r) => new { ur.UserId, RoleName = r.Name ?? string.Empty })
+                .ToListAsync();
+
+            var rolesByUser = rolePairs
+                .GroupBy(x => x.UserId)
+                .ToDictionary(g => g.Key, g => (IReadOnlyCollection<string>)g.Select(x => x.RoleName).OrderBy(x => x).ToArray());
+
+            var items = users.Select(u => MapKullaniciDto(u, rolesByUser.GetValueOrDefault(u.Id, Array.Empty<string>()))).ToArray();
+
+            return new PagedResult<AdminKullaniciDto>
+            {
+                Items = items,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount
+            };
+        }
+
+        internal IQueryable<ApplicationUser> BuildKullanicilarQuery(AdminKullaniciQuery query)
+        {
             var usersQuery = _context.Users
                 .AsNoTracking()
                 .Include(u => u.SaticiProfili)
@@ -58,34 +92,7 @@ namespace Infrastructure.Services
                     (!u.EmailConfirmed || !u.SaticiProfili.AktifMi || u.SaticiProfili.AdminDogrulandiMi == false));
             }
 
-            var totalCount = await usersQuery.CountAsync();
-            var users = await usersQuery
-                .OrderByDescending(u => u.SaticiProfili != null)
-                .ThenBy(u => u.Email)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            var userIds = users.Select(u => u.Id).ToList();
-            var rolePairs = await _context.UserRoles
-                .AsNoTracking()
-                .Where(ur => userIds.Contains(ur.UserId))
-                .Join(_context.Roles.AsNoTracking(), ur => ur.RoleId, r => r.Id, (ur, r) => new { ur.UserId, RoleName = r.Name ?? string.Empty })
-                .ToListAsync();
-
-            var rolesByUser = rolePairs
-                .GroupBy(x => x.UserId)
-                .ToDictionary(g => g.Key, g => (IReadOnlyCollection<string>)g.Select(x => x.RoleName).OrderBy(x => x).ToArray());
-
-            var items = users.Select(u => MapKullaniciDto(u, rolesByUser.GetValueOrDefault(u.Id, Array.Empty<string>()))).ToArray();
-
-            return new PagedResult<AdminKullaniciDto>
-            {
-                Items = items,
-                Page = page,
-                PageSize = pageSize,
-                TotalCount = totalCount
-            };
+            return usersQuery;
         }
 
         public async Task<AdminKullaniciDto> SetSaticiDogrulamaAsync(string saticiId, AdminSaticiDogrulamaDto dto)
@@ -190,20 +197,27 @@ namespace Infrastructure.Services
             var page = query.Page < 1 ? 1 : query.Page;
             var pageSize = query.PageSize < 1 ? 20 : Math.Min(query.PageSize, 100);
 
-            var urunQuery = _context.Urunler
-                .AsNoTracking()
-                .Include(u => u.Resimler)
-                .Include(u => u.Videolar)
-                .Include(u => u.Kategori)
-                .Include(u => u.Puanlar)
-                .ThenInclude(p => p.Kullanici)
-                .Include(u => u.Favoriler)
-                .Include(u => u.Satici)
-                .ThenInclude(s => s.Kullanici)
-                .Include(u => u.Yorumlar)
-                .ThenInclude(y => y.YorumYapanKullanici)
-                .AsSplitQuery()
-                .AsQueryable();
+            var urunQuery = BuildUrunlerQuery(query);
+
+            var totalCount = await urunQuery.CountAsync();
+            var items = await urunQuery
+                .OrderByDescending(u => u.OlusturmaTarihi)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return new PagedResult<UrunDto>
+            {
+                Items = items.Select(MapUrunDto).ToArray(),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount
+            };
+        }
+
+        internal IQueryable<Urun> BuildUrunlerQuery(AdminUrunQuery query)
+        {
+            var urunQuery = BuildAdminUrunDetailsQuery(asNoTracking: true);
 
             if (!string.IsNullOrWhiteSpace(query.Q))
             {
@@ -229,25 +243,14 @@ namespace Infrastructure.Services
                 urunQuery = urunQuery.Where(u => u.AktifMi == query.AktifMi.Value);
             }
 
-            var totalCount = await urunQuery.CountAsync();
-            var items = await urunQuery
-                .OrderByDescending(u => u.OlusturmaTarihi)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            return new PagedResult<UrunDto>
-            {
-                Items = items.Select(MapUrunDto).ToArray(),
-                Page = page,
-                PageSize = pageSize,
-                TotalCount = totalCount
-            };
+            return urunQuery;
         }
 
-        public async Task<UrunDto> SetUrunDurumAsync(int urunId, AdminDurumGuncelleDto dto)
+        internal IQueryable<Urun> BuildAdminUrunDetailsQuery(bool asNoTracking)
         {
-            var urun = await _context.Urunler
+            var query = asNoTracking ? _context.Urunler.AsNoTracking() : _context.Urunler.AsQueryable();
+
+            return query
                 .Include(u => u.Resimler)
                 .Include(u => u.Videolar)
                 .Include(u => u.Kategori)
@@ -258,7 +261,12 @@ namespace Infrastructure.Services
                 .ThenInclude(s => s.Kullanici)
                 .Include(u => u.Yorumlar)
                 .ThenInclude(y => y.YorumYapanKullanici)
-                .AsSplitQuery()
+                .AsSplitQuery();
+        }
+
+        public async Task<UrunDto> SetUrunDurumAsync(int urunId, AdminDurumGuncelleDto dto)
+        {
+            var urun = await BuildAdminUrunDetailsQuery(asNoTracking: false)
                 .FirstOrDefaultAsync(u => u.Id == urunId);
 
             if (urun == null)

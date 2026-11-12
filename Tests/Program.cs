@@ -65,7 +65,7 @@ foreach (var (name, test) in tests)
     }
 }
 
-foreach (var (name, test) in ServiceBehaviorTests.GetTests())
+foreach (var (name, test) in ServiceBehaviorTests.GetTests().Concat(EfCoreAndDiGuardsTests.GetTests()))
 {
     try
     {

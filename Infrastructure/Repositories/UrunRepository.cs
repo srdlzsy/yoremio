@@ -43,17 +43,8 @@ namespace Infrastructure.Repositories
 
         public async Task<Urun?> GetByIdForUpdateAsync(int id)
         {
-            return await _dbSet.Include(u => u.Resimler)
-                               .Include(u => u.Videolar)
-                               .Include(u => u.Kategori)
-                               .Include(u => u.Puanlar)
-                               .Include(u => u.Favoriler)
-                               .Include(u => u.Satici)
-                               .ThenInclude(s => s.Kullanici)
-                               .Include(u => u.Yorumlar)
-                               .ThenInclude(y => y.YorumYapanKullanici)
-                               .AsSplitQuery()
-                               .FirstOrDefaultAsync(x => x.Id == id);
+            return await BuildDetailsQuery(asNoTracking: false, includeRatingUsers: false)
+                .FirstOrDefaultAsync(x => x.Id == id);
         }
 
         public async Task<Urun?> GetByIdAsync(int id)
@@ -63,53 +54,21 @@ namespace Infrastructure.Repositories
 
         public override async Task<IEnumerable<Urun>> GetAllAsync()
         {
-            return await _dbSet.AsNoTracking()
-                               .Include(u => u.Resimler)
-                               .Include(u => u.Videolar)
-                               .Include(u => u.Kategori)
-                               .Include(u => u.Puanlar)
-                               .Include(u => u.Favoriler)
-                               .Include(u => u.Satici)
-                               .ThenInclude(s => s.Kullanici)
-                               .Include(u => u.Yorumlar)
-                               .ThenInclude(y => y.YorumYapanKullanici)
-                               .AsSplitQuery()
-                               .ToListAsync();
+            return await BuildDetailsQuery(asNoTracking: true, includeRatingUsers: false)
+                .ToListAsync();
         }
 
         public override async Task<IEnumerable<Urun>> FindAsync(Expression<Func<Urun, bool>> predicate)
         {
-            return await _dbSet.AsNoTracking()
-                               .Include(u => u.Resimler)
-                               .Include(u => u.Videolar)
-                               .Include(u => u.Kategori)
-                               .Include(u => u.Puanlar)
-                               .ThenInclude(p => p.Kullanici)
-                               .Include(u => u.Favoriler)
-                               .Include(u => u.Satici)
-                               .ThenInclude(s => s.Kullanici)
-                               .Include(u => u.Yorumlar)
-                               .ThenInclude(y => y.YorumYapanKullanici)
-                               .Where(predicate)
-                               .AsSplitQuery()
-                               .ToListAsync();
+            return await BuildDetailsQuery(asNoTracking: true, includeRatingUsers: true)
+                .Where(predicate)
+                .ToListAsync();
         }
 
         public async Task<Urun?> GetByIdWithRelationsAsync(int id)
         {
-            return await _dbSet.AsNoTracking()
-                               .Include(u => u.Videolar)
-                               .Include(u => u.Resimler)
-                               .Include(u => u.Kategori)
-                               .Include(u => u.Puanlar)
-                               .ThenInclude(p => p.Kullanici)
-                               .Include(u => u.Favoriler)
-                               .Include(u => u.Satici)
-                               .ThenInclude(s => s.Kullanici)
-                               .Include(u => u.Yorumlar)
-                               .ThenInclude(y => y.YorumYapanKullanici)
-                               .AsSplitQuery()
-                               .FirstOrDefaultAsync(u => u.Id == id);
+            return await BuildDetailsQuery(asNoTracking: true, includeRatingUsers: true)
+                .FirstOrDefaultAsync(u => u.Id == id);
         }
 
         public async Task IncrementViewCountAsync(int id)
@@ -121,6 +80,53 @@ namespace Infrastructure.Repositories
         }
 
         public async Task<PagedResult<Urun>> QueryAsync(UrunQuery query)
+        {
+            var urunler = BuildSearchQuery(query);
+
+            var totalCount = await urunler.CountAsync();
+            var items = await urunler.Skip((query.Page - 1) * query.PageSize)
+                                     .Take(query.PageSize)
+                                     .ToListAsync();
+
+            return new PagedResult<Urun>
+            {
+                Items = items,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                TotalCount = totalCount
+            };
+        }
+
+        internal IQueryable<Urun> BuildDetailsQuery(bool asNoTracking, bool includeRatingUsers)
+        {
+            var query = asNoTracking ? _dbSet.AsNoTracking() : _dbSet.AsQueryable();
+
+            query = query
+                .Include(u => u.Resimler)
+                .Include(u => u.Videolar)
+                .Include(u => u.Kategori);
+
+            if (includeRatingUsers)
+            {
+                query = query
+                    .Include(u => u.Puanlar)
+                    .ThenInclude(p => p.Kullanici);
+            }
+            else
+            {
+                query = query.Include(u => u.Puanlar);
+            }
+
+            return query
+                .Include(u => u.Favoriler)
+                .Include(u => u.Satici)
+                .ThenInclude(s => s.Kullanici)
+                .Include(u => u.Yorumlar)
+                .ThenInclude(y => y.YorumYapanKullanici)
+                .AsSplitQuery();
+        }
+
+        internal IQueryable<Urun> BuildSearchQuery(UrunQuery query)
         {
             var minFiyat = query.MinFiyat;
             var maxFiyat = query.MaxFiyat;
@@ -308,18 +314,7 @@ namespace Infrastructure.Repositories
                 _ => urunler.OrderByDescending(u => u.OlusturmaTarihi)
             };
 
-            var totalCount = await urunler.CountAsync();
-            var items = await urunler.Skip((query.Page - 1) * query.PageSize)
-                                     .Take(query.PageSize)
-                                     .ToListAsync();
-
-            return new PagedResult<Urun>
-            {
-                Items = items,
-                Page = query.Page,
-                PageSize = query.PageSize,
-                TotalCount = totalCount
-            };
+            return urunler;
         }
 
         public async Task<IReadOnlyCollection<Urun>> GetRecommendedAsync(
@@ -330,38 +325,9 @@ namespace Infrastructure.Repositories
             string? tercihEdilenIlce = null)
         {
             var effectiveTake = take <= 0 ? 12 : take;
-            var normalizedSehir = string.IsNullOrWhiteSpace(tercihEdilenSehir) ? null : tercihEdilenSehir.Trim().ToLower();
-            var normalizedIlce = string.IsNullOrWhiteSpace(tercihEdilenIlce) ? null : tercihEdilenIlce.Trim().ToLower();
-
-            var query = _dbSet
-                .AsNoTracking()
-                .Include(u => u.Resimler)
-                .Include(u => u.Videolar)
-                .Include(u => u.Kategori)
-                .Include(u => u.Puanlar)
-                .ThenInclude(p => p.Kullanici)
-                .Include(u => u.Favoriler)
-                .Include(u => u.Satici)
-                .ThenInclude(s => s.Kullanici)
-                .Include(u => u.Yorumlar)
-                .ThenInclude(y => y.YorumYapanKullanici)
-                .Where(u => u.AktifMi)
-                .AsSplitQuery()
-                .AsQueryable();
-
-            if (kategoriIdleri.Count > 0)
-            {
-                query = query.Where(u => kategoriIdleri.Contains(u.KategoriId));
-            }
-
-            if (haricUrunIdleri.Count > 0)
-            {
-                query = query.Where(u => !haricUrunIdleri.Contains(u.Id));
-            }
-
-            var result = await OrderRecommended(query, normalizedSehir, normalizedIlce)
+            var result = (await BuildRecommendedQuery(kategoriIdleri, haricUrunIdleri, tercihEdilenSehir, tercihEdilenIlce)
                 .Take(effectiveTake)
-                .ToListAsync();
+                .ToListAsync());
 
             if (result.Count >= effectiveTake)
             {
@@ -375,27 +341,37 @@ namespace Infrastructure.Repositories
                 alinanIdler.Add(id);
             }
 
-            var fallbackQuery = _dbSet
-                .AsNoTracking()
-                .Include(u => u.Resimler)
-                .Include(u => u.Videolar)
-                .Include(u => u.Kategori)
-                .Include(u => u.Puanlar)
-                .ThenInclude(p => p.Kullanici)
-                .Include(u => u.Favoriler)
-                .Include(u => u.Satici)
-                .ThenInclude(s => s.Kullanici)
-                .Include(u => u.Yorumlar)
-                .ThenInclude(y => y.YorumYapanKullanici)
-                .Where(u => u.AktifMi && !alinanIdler.Contains(u.Id))
-                .AsSplitQuery();
-
-            var fallback = await OrderRecommended(fallbackQuery, normalizedSehir, normalizedIlce)
+            var fallback = await BuildRecommendedQuery(Array.Empty<int>(), alinanIdler, tercihEdilenSehir, tercihEdilenIlce)
                 .Take(eksik)
                 .ToListAsync();
 
             result.AddRange(fallback);
             return result;
+        }
+
+        internal IOrderedQueryable<Urun> BuildRecommendedQuery(
+            IReadOnlyCollection<int> kategoriIdleri,
+            IReadOnlyCollection<int> haricUrunIdleri,
+            string? tercihEdilenSehir = null,
+            string? tercihEdilenIlce = null)
+        {
+            var normalizedSehir = string.IsNullOrWhiteSpace(tercihEdilenSehir) ? null : tercihEdilenSehir.Trim().ToLower();
+            var normalizedIlce = string.IsNullOrWhiteSpace(tercihEdilenIlce) ? null : tercihEdilenIlce.Trim().ToLower();
+
+            var query = BuildDetailsQuery(asNoTracking: true, includeRatingUsers: true)
+                .Where(u => u.AktifMi);
+
+            if (kategoriIdleri.Count > 0)
+            {
+                query = query.Where(u => kategoriIdleri.Contains(u.KategoriId));
+            }
+
+            if (haricUrunIdleri.Count > 0)
+            {
+                query = query.Where(u => !haricUrunIdleri.Contains(u.Id));
+            }
+
+            return OrderRecommended(query, normalizedSehir, normalizedIlce);
         }
 
         public async Task<IReadOnlyCollection<(string Sehir, string? Ilce)>> GetActiveSellerLocationsAsync()

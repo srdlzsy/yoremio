@@ -24,66 +24,72 @@ namespace Infrastructure.Repositories
 
         public async Task<IReadOnlyCollection<Talep>> GetAliciTalepleriAsync(string aliciId, string? durum = null)
         {
-            return await FilterByDurum(
-                    BuildDetailsQuery(asNoTracking: true).Where(t => t.AliciId == aliciId),
-                    durum)
-                .OrderByDescending(t => t.OlusturmaTarihi)
-                .ToListAsync();
+            return await BuildAliciTalepleriQuery(aliciId, durum).ToListAsync();
         }
 
         public async Task<PagedResult<Talep>> GetAliciTalepleriPagedAsync(string aliciId, string? durum, int page, int pageSize)
         {
             return await ToPagedAsync(
-                FilterByDurum(BuildDetailsQuery(asNoTracking: true).Where(t => t.AliciId == aliciId), durum)
-                    .OrderByDescending(t => t.OlusturmaTarihi),
+                BuildAliciTalepleriQuery(aliciId, durum),
                 page,
                 pageSize);
         }
 
         public async Task<IReadOnlyCollection<Talep>> GetSaticiTalepleriAsync(string saticiId, string? durum = null)
         {
-            return await FilterByDurum(
+            return await BuildSaticiTalepleriQuery(saticiId, durum).ToListAsync();
+        }
+
+        public async Task<PagedResult<Talep>> GetSaticiTalepleriPagedAsync(string saticiId, string? durum, int page, int pageSize)
+        {
+            return await ToPagedAsync(BuildSaticiTalepleriQuery(saticiId, durum), page, pageSize);
+        }
+
+        public async Task<PagedResult<Talep>> GetAcikPazarTalepleriForSellerAsync(string saticiId, string? durum, int page, int pageSize)
+        {
+            return await ToPagedAsync(BuildAcikPazarForSellerQuery(saticiId, durum), page, pageSize);
+        }
+
+        public async Task<TalepTeklif?> GetTeklifByIdWithDetailsAsync(int teklifId)
+        {
+            return await BuildTeklifDetailsQuery()
+                .FirstOrDefaultAsync(t => t.Id == teklifId);
+        }
+
+        internal IQueryable<Talep> BuildAliciTalepleriQuery(string aliciId, string? durum)
+        {
+            return FilterByDurum(BuildDetailsQuery(asNoTracking: true).Where(t => t.AliciId == aliciId), durum)
+                .OrderByDescending(t => t.OlusturmaTarihi);
+        }
+
+        internal IQueryable<Talep> BuildSaticiTalepleriQuery(string saticiId, string? durum)
+        {
+            return FilterByDurum(
                     BuildDetailsQuery(asNoTracking: true).Where(t =>
                         (t.Urun != null && t.Urun.SaticiId == saticiId) ||
                         t.Eslesmeler.Any(e => e.SaticiId == saticiId) ||
                         t.Teklifler.Any(teklif => teklif.SaticiId == saticiId)),
                     durum)
-                .OrderByDescending(t => t.OlusturmaTarihi)
-                .ToListAsync();
-        }
-
-        public async Task<PagedResult<Talep>> GetSaticiTalepleriPagedAsync(string saticiId, string? durum, int page, int pageSize)
-        {
-            var baseQuery = FilterByDurum(
-                BuildDetailsQuery(asNoTracking: true).Where(t =>
-                    (t.Urun != null && t.Urun.SaticiId == saticiId) ||
-                    t.Eslesmeler.Any(e => e.SaticiId == saticiId) ||
-                    t.Teklifler.Any(teklif => teklif.SaticiId == saticiId)),
-                durum)
                 .OrderByDescending(t => t.OlusturmaTarihi);
-
-            return await ToPagedAsync(baseQuery, page, pageSize);
         }
 
-        public async Task<PagedResult<Talep>> GetAcikPazarTalepleriForSellerAsync(string saticiId, string? durum, int page, int pageSize)
+        internal IQueryable<Talep> BuildAcikPazarForSellerQuery(string saticiId, string? durum)
         {
             var effectiveDurum = string.IsNullOrWhiteSpace(durum) ? TalepDurumlari.Acik : durum;
 
-            var baseQuery = FilterByDurum(
-                BuildDetailsQuery(asNoTracking: true).Where(t =>
-                    t.TalepTuru == TalepTurleri.AcikPazar &&
-                    t.AliciId != saticiId),
-                effectiveDurum)
+            return FilterByDurum(
+                    BuildDetailsQuery(asNoTracking: true).Where(t =>
+                        t.TalepTuru == TalepTurleri.AcikPazar &&
+                        t.AliciId != saticiId),
+                    effectiveDurum)
                 .OrderByDescending(t => t.Eslesmeler.Any(e => e.SaticiId == saticiId))
                 .ThenByDescending(t => t.Eslesmeler.Where(e => e.SaticiId == saticiId).Select(e => e.EslesmeSkoru).FirstOrDefault())
                 .ThenByDescending(t => t.OlusturmaTarihi);
-
-            return await ToPagedAsync(baseQuery, page, pageSize);
         }
 
-        public async Task<TalepTeklif?> GetTeklifByIdWithDetailsAsync(int teklifId)
+        internal IQueryable<TalepTeklif> BuildTeklifDetailsQuery()
         {
-            return await _dbContext.Set<TalepTeklif>()
+            return _dbContext.Set<TalepTeklif>()
                 .Include(t => t.Talep)
                 .ThenInclude(talep => talep!.Urun)
                 .Include(t => t.Talep)
@@ -94,8 +100,7 @@ namespace Infrastructure.Repositories
                 .ThenInclude(talep => talep!.Eslesmeler)
                 .Include(t => t.Satici)
                 .ThenInclude(user => user!.SaticiProfili)
-                .AsSplitQuery()
-                .FirstOrDefaultAsync(t => t.Id == teklifId);
+                .AsSplitQuery();
         }
 
         public async Task<TalepTeklif?> GetTeklifByTalepVeSaticiAsync(int talepId, string saticiId)
@@ -137,7 +142,7 @@ namespace Infrastructure.Repositories
             }
         }
 
-        private IQueryable<Talep> BuildDetailsQuery(bool asNoTracking)
+        internal IQueryable<Talep> BuildDetailsQuery(bool asNoTracking)
         {
             var query = _dbContext.Set<Talep>().AsQueryable();
             if (asNoTracking)

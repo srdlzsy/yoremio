@@ -31,7 +31,29 @@ namespace Infrastructure.Repositories
 
         public async Task<IReadOnlyCollection<ChatMessage>> GetRecentMessagesForUserAsync(string userId, int take)
         {
-            return await _dbContext.ChatMessages
+            return await BuildRecentMessagesQuery(userId)
+                .Take(take)
+                .ToListAsync();
+        }
+
+        public async Task<IReadOnlyCollection<ChatMessage>> GetConversationMessagesAsync(string firstUserId, string secondUserId, int skip, int take, int? urunId = null, int? talepId = null)
+        {
+            var messages = await BuildConversationMessagesQuery(firstUserId, secondUserId, urunId, talepId)
+                .OrderByDescending(message => message.SentAt)
+                .ThenByDescending(message => message.Id)
+                .Skip(skip)
+                .Take(take)
+                .ToListAsync();
+
+            return messages
+                .OrderBy(message => message.SentAt)
+                .ThenBy(message => message.Id)
+                .ToList();
+        }
+
+        internal IQueryable<ChatMessage> BuildRecentMessagesQuery(string userId)
+        {
+            return _dbContext.ChatMessages
                 .AsNoTracking()
                 .Include(message => message.Sender)
                     .ThenInclude(user => user!.SaticiProfili)
@@ -40,12 +62,10 @@ namespace Infrastructure.Repositories
                 .Include(message => message.Urun)
                 .Where(message => message.SenderId == userId || message.ReceiverId == userId)
                 .OrderByDescending(message => message.SentAt)
-                .ThenByDescending(message => message.Id)
-                .Take(take)
-                .ToListAsync();
+                .ThenByDescending(message => message.Id);
         }
 
-        public async Task<IReadOnlyCollection<ChatMessage>> GetConversationMessagesAsync(string firstUserId, string secondUserId, int skip, int take, int? urunId = null, int? talepId = null)
+        internal IQueryable<ChatMessage> BuildConversationMessagesQuery(string firstUserId, string secondUserId, int? urunId = null, int? talepId = null)
         {
             var query = _dbContext.ChatMessages
                 .AsNoTracking()
@@ -64,17 +84,7 @@ namespace Infrastructure.Repositories
                 query = query.Where(message => message.TalepId == talepId.Value);
             }
 
-            var messages = await query
-                .OrderByDescending(message => message.SentAt)
-                .ThenByDescending(message => message.Id)
-                .Skip(skip)
-                .Take(take)
-                .ToListAsync();
-
-            return messages
-                .OrderBy(message => message.SentAt)
-                .ThenBy(message => message.Id)
-                .ToList();
+            return query;
         }
 
         public async Task<int> GetConversationMessageCountAsync(string firstUserId, string secondUserId, int? urunId = null, int? talepId = null)

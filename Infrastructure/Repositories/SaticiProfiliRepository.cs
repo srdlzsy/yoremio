@@ -25,18 +25,7 @@ namespace Infrastructure.Repositories
 
         public async Task<SaticiProfili?> GetSaticiPublicDetailsByIdAsync(string kullaniciId)
         {
-            return await _dbSet
-                .AsNoTracking()
-                .Include(p => p.Kullanici)
-                .Include(p => p.Urunler.Where(u => u.AktifMi))
-                    .ThenInclude(u => u.Puanlar)
-                .Include(p => p.Urunler.Where(u => u.AktifMi))
-                    .ThenInclude(u => u.Yorumlar)
-                .Include(p => p.Urunler.Where(u => u.AktifMi))
-                    .ThenInclude(u => u.Favoriler)
-                .Include(p => p.Urunler.Where(u => u.AktifMi))
-                    .ThenInclude(u => u.Resimler)
-                .AsSplitQuery()
+            return await BuildPublicDetailsQuery()
                 .FirstOrDefaultAsync(p => p.KullaniciId == kullaniciId && p.AktifMi);
         }
 
@@ -45,16 +34,32 @@ namespace Infrastructure.Repositories
             var effectiveTake = take <= 0 ? 6 : Math.Min(take, 24);
             var candidateLimit = effectiveTake * 4;
 
+            return await BuildFeaturedSellersQuery(candidateLimit).ToListAsync();
+        }
+
+        internal IQueryable<SaticiProfili> BuildPublicDetailsQuery()
+        {
+            return ApplySellerStorefrontIncludes(_dbSet.AsNoTracking());
+        }
+
+        internal IQueryable<SaticiProfili> BuildFeaturedSellersQuery(int candidateLimit)
+        {
             // Tam skorlama öncesi SQL tarafında aday havuzunu sınırlandırarak tüm tablo yüklemesini önlüyoruz.
-            return await _dbSet
-                .AsNoTracking()
-                .Where(p => p.AktifMi && p.Urunler.Any(u => u.AktifMi))
-                .OrderByDescending(p =>
-                    p.AdminDogrulandiMi == true ||
-                    (p.AdminDogrulandiMi == null && p.Kullanici != null && p.Kullanici.EmailConfirmed && !string.IsNullOrWhiteSpace(p.VergiNo)))
-                .ThenByDescending(p => p.Urunler.Where(u => u.AktifMi).Sum(u => u.Favoriler.Count + u.Yorumlar.Count(y => y.AktifMi) + u.Puanlar.Count))
-                .ThenByDescending(p => p.Urunler.Count(u => u.AktifMi))
-                .Take(candidateLimit)
+            return ApplySellerStorefrontIncludes(
+                _dbSet
+                    .AsNoTracking()
+                    .Where(p => p.AktifMi && p.Urunler.Any(u => u.AktifMi))
+                    .OrderByDescending(p =>
+                        p.AdminDogrulandiMi == true ||
+                        (p.AdminDogrulandiMi == null && p.Kullanici != null && p.Kullanici.EmailConfirmed && !string.IsNullOrWhiteSpace(p.VergiNo)))
+                    .ThenByDescending(p => p.Urunler.Where(u => u.AktifMi).Sum(u => u.Favoriler.Count + u.Yorumlar.Count(y => y.AktifMi) + u.Puanlar.Count))
+                    .ThenByDescending(p => p.Urunler.Count(u => u.AktifMi))
+                    .Take(candidateLimit));
+        }
+
+        private static IQueryable<SaticiProfili> ApplySellerStorefrontIncludes(IQueryable<SaticiProfili> query)
+        {
+            return query
                 .Include(p => p.Kullanici)
                 .Include(p => p.Urunler.Where(u => u.AktifMi))
                     .ThenInclude(u => u.Puanlar)
@@ -64,8 +69,7 @@ namespace Infrastructure.Repositories
                     .ThenInclude(u => u.Favoriler)
                 .Include(p => p.Urunler.Where(u => u.AktifMi))
                     .ThenInclude(u => u.Resimler)
-                .AsSplitQuery()
-                .ToListAsync();
+                .AsSplitQuery();
         }
 
         // Ekstra metodlar burada yazılabilir

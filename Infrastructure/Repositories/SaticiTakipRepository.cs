@@ -18,7 +18,12 @@ namespace Infrastructure.Repositories
 
         public async Task<IReadOnlyCollection<SaticiTakip>> GetByAliciAsync(string aliciId)
         {
-            return await _dbSet
+            return await BuildByAliciQuery(aliciId).ToListAsync();
+        }
+
+        internal IQueryable<SaticiTakip> BuildByAliciQuery(string aliciId)
+        {
+            return _dbSet
                 .AsNoTracking()
                 .Include(x => x.Satici)
                 .ThenInclude(s => s!.Kullanici)
@@ -36,8 +41,7 @@ namespace Infrastructure.Repositories
                 .ThenInclude(u => u.Favoriler)
                 .AsSplitQuery()
                 .Where(x => x.AliciId == aliciId)
-                .OrderByDescending(x => x.OlusturmaTarihi)
-                .ToListAsync();
+                .OrderByDescending(x => x.OlusturmaTarihi);
         }
 
         public async Task<IReadOnlyCollection<SaticiTakip>> GetFollowersWithNotificationAsync(string saticiId)

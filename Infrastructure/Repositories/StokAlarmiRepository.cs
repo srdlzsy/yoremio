@@ -18,13 +18,17 @@ namespace Infrastructure.Repositories
 
         public async Task<IReadOnlyCollection<StokAlarmi>> GetByAliciWithProductAsync(string aliciId)
         {
-            return await _dbSet
+            return await BuildByAliciWithProductQuery(aliciId).ToListAsync();
+        }
+
+        internal IQueryable<StokAlarmi> BuildByAliciWithProductQuery(string aliciId)
+        {
+            return _dbSet
                 .AsNoTracking()
                 .Include(x => x.Urun)
                 .ThenInclude(u => u!.Resimler)
                 .Where(x => x.AliciId == aliciId)
-                .OrderByDescending(x => x.OlusturmaTarihi)
-                .ToListAsync();
+                .OrderByDescending(x => x.OlusturmaTarihi);
         }
 
         public async Task<IReadOnlyCollection<StokAlarmi>> GetActiveByProductAsync(int urunId)
