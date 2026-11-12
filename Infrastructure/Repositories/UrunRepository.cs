@@ -132,15 +132,12 @@ namespace Infrastructure.Repositories
             var urunler = _dbSet
                 .AsNoTracking()
                 .Include(u => u.Resimler)
-                .Include(u => u.Videolar)
                 .Include(u => u.Kategori)
                 .Include(u => u.Puanlar)
-                .ThenInclude(p => p.Kullanici)
                 .Include(u => u.Favoriler)
                 .Include(u => u.Satici)
                 .ThenInclude(s => s.Kullanici)
-                .Include(u => u.Yorumlar)
-                .ThenInclude(y => y.YorumYapanKullanici)
+                .Include(u => u.Yorumlar.Where(y => y.AktifMi))
                 .AsSplitQuery()
                 .AsQueryable();
 
@@ -151,13 +148,40 @@ namespace Infrastructure.Repositories
 
             if (!string.IsNullOrWhiteSpace(query.Q))
             {
-                var term = query.Q.Trim().ToLower();
-                urunler = urunler.Where(u =>
-                    u.Adi.ToLower().Contains(term) ||
-                    u.Aciklama.ToLower().Contains(term) ||
-                    (u.UretimSehir != null && u.UretimSehir.ToLower().Contains(term)) ||
-                    (u.UretimIlce != null && u.UretimIlce.ToLower().Contains(term)) ||
-                    (u.Satici.MagazaAdi != null && u.Satici.MagazaAdi.ToLower().Contains(term)));
+                var rawTokens = query.Q.Trim().ToLower()
+                    .Split(new[] { ' ', ',', ';', '.', '-', '/', '+' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Where(t => t.Length >= 2)
+                    .Distinct()
+                    .ToArray();
+
+                if (rawTokens.Length == 0)
+                {
+                    var term = query.Q.Trim().ToLower();
+                    var normTerm = SearchNormalizer.NormalizeTurkish(term);
+                    urunler = urunler.Where(u =>
+                        u.Adi.ToLower().Contains(term) || u.Adi.ToLower().Contains(normTerm) ||
+                        u.Aciklama.ToLower().Contains(term) || u.Aciklama.ToLower().Contains(normTerm));
+                }
+                else
+                {
+                    foreach (var rawTok in rawTokens)
+                    {
+                        var normTok = SearchNormalizer.NormalizeTurkish(rawTok);
+                        var stemTok = normTok.Length >= 5 && (normTok.EndsWith("i") || normTok.EndsWith("u") || normTok.EndsWith("a") || normTok.EndsWith("e"))
+                            ? normTok[..^1]
+                            : normTok;
+                        var rawStemTok = rawTok.Length >= 5 && (rawTok.EndsWith("i") || rawTok.EndsWith("ı") || rawTok.EndsWith("u") || rawTok.EndsWith("ü") || rawTok.EndsWith("a") || rawTok.EndsWith("e"))
+                            ? rawTok[..^1]
+                            : rawTok;
+
+                        urunler = urunler.Where(u =>
+                            u.Adi.ToLower().Contains(rawTok) || u.Adi.ToLower().Contains(normTok) || u.Adi.ToLower().Contains(stemTok) || u.Adi.ToLower().Contains(rawStemTok) ||
+                            u.Aciklama.ToLower().Contains(rawTok) || u.Aciklama.ToLower().Contains(normTok) || u.Aciklama.ToLower().Contains(stemTok) ||
+                            (u.UretimSehir != null && (u.UretimSehir.ToLower().Contains(rawTok) || u.UretimSehir.ToLower().Contains(normTok))) ||
+                            (u.UretimIlce != null && (u.UretimIlce.ToLower().Contains(rawTok) || u.UretimIlce.ToLower().Contains(normTok))) ||
+                            (u.Satici.MagazaAdi != null && (u.Satici.MagazaAdi.ToLower().Contains(rawTok) || u.Satici.MagazaAdi.ToLower().Contains(normTok))));
+                    }
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(query.SaticiId))
@@ -242,7 +266,9 @@ namespace Infrastructure.Repositories
                     (u.Satici.AdminDogrulandiMi == null &&
                      u.Satici.Kullanici != null &&
                      u.Satici.Kullanici.EmailConfirmed &&
-                     !string.IsNullOrWhiteSpace(u.Satici.VergiNo)));
+                     !string.IsNullOrWhiteSpace(u.Satici.VergiNo) &&
+                     u.Satici.IsletmeDogrulandiMi &&
+                     u.Satici.UreticiDogrulandiMi));
             }
 
             if (query.MinOrtalamaPuan.HasValue)

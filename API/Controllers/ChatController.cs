@@ -35,10 +35,10 @@ namespace API.Controllers
         }
 
         [HttpGet("messages/{otherUserId}")]
-        public async Task<IActionResult> GetMessages(string otherUserId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+        public async Task<IActionResult> GetMessages(string otherUserId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50, [FromQuery] int? urunId = null, [FromQuery] int? talepId = null)
         {
             var userId = GetCurrentUserId();
-            var messages = await _chatService.GetConversationMessagesAsync(userId, otherUserId, page, pageSize);
+            var messages = await _chatService.GetConversationMessagesAsync(userId, otherUserId, page, pageSize, urunId, talepId);
 
             return Ok(ApiResponse<ChatConversationMessagesDto>.Ok(
                 messages,
@@ -50,12 +50,15 @@ namespace API.Controllers
         public async Task<IActionResult> SendMessage(string receiverId, [FromBody] ChatSendMessageDto dto)
         {
             var senderId = GetCurrentUserId();
-            var message = await _chatService.SendMessageAsync(senderId, receiverId, dto.Message);
+            var message = await _chatService.SendMessageAsync(senderId, receiverId, dto.Message, dto.UrunId, dto.TalepId);
             var receiverMessage = new ChatMessageDto
             {
                 Id = message.Id,
                 SenderId = message.SenderId,
                 ReceiverId = message.ReceiverId,
+                UrunId = message.UrunId,
+                UrunAdi = message.UrunAdi,
+                TalepId = message.TalepId,
                 Message = message.Message,
                 SentAt = message.SentAt,
                 ReadAt = message.ReadAt,

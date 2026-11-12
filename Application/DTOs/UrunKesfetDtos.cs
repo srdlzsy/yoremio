@@ -30,6 +30,7 @@ namespace Application.DTOs
         public IReadOnlyCollection<UrunDto> SehreGonderimYapanlar { get; set; } = Array.Empty<UrunDto>();
         public IReadOnlyCollection<UrunDto> StoguTukenenUrunler { get; set; } = Array.Empty<UrunDto>();
         public IReadOnlyCollection<OrtakAlimDto> AktifOrtakAlimlar { get; set; } = Array.Empty<OrtakAlimDto>();
+        public IReadOnlyCollection<PlanliGonderimDto> PlanliGonderimler { get; set; } = Array.Empty<PlanliGonderimDto>();
         public BenimIcinBulOneriDto BenimIcinBulOnerisi { get; set; } = new();
     }
 

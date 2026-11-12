@@ -26,6 +26,8 @@ namespace Application.DTOs
         public string? Ilce { get; set; }
         public bool? SaticiAktifMi { get; set; }
         public bool DogrulanmisSatici { get; set; }
+        public bool IsletmeDogrulandi { get; set; }
+        public bool UreticiDogrulandi { get; set; }
         public bool? AdminDogrulamaDurumu { get; set; }
         public int UrunSayisi { get; set; }
         public DateTime? KayitTarihi { get; set; }
@@ -34,6 +36,8 @@ namespace Application.DTOs
     public class AdminSaticiDogrulamaDto
     {
         public bool? DogrulandiMi { get; set; }
+        public bool? IsletmeDogrulandiMi { get; set; }
+        public bool? UreticiDogrulandiMi { get; set; }
 
         [MaxLength(500, ErrorMessage = "Not en fazla 500 karakter olabilir.")]
         public string? Not { get; set; }

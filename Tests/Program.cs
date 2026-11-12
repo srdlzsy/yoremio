@@ -45,7 +45,8 @@ var tests = new (string Name, Action Test)[]
     ("Buyume ve elde tutma endpointleri dogru rolleri istemeli", GrowthAndRetentionEndpoints_Should_RequireExpectedRoles),
     ("Acik pazar talep ve fiyat alarm DTO dogrulamasi calismali", AcikTalepAndFiyatAlarmiDtos_Should_Validate),
     ("Konum kesfi, stok alarmi ve ortak alim endpointleri dogru rolleri istemeli", LocationDiscoveryAndOrtakAlimEndpoints_Should_RequireExpectedRoles),
-    ("Ortak alim olusturma DTO dogrulamasi calismali", OrtakAlimOlusturDto_Should_Validate)
+    ("Ortak alim olusturma DTO dogrulamasi calismali", OrtakAlimOlusturDto_Should_Validate),
+    ("Planli gonderim ve sohbet baglami endpointleri ile Turkce arama normalizasyonu calismali", PlanliGonderimVerificationAndSearchNormalizer_Should_Work)
 };
 
 var failed = new List<string>();
@@ -483,6 +484,50 @@ static void OrtakAlimOlusturDto_Should_Validate()
     if (Validate(invalid).Count < 3)
     {
         throw new InvalidOperationException("Gecersiz OrtakAlimOlusturDto alanlari dogrulamadan gecmemeliydi.");
+    }
+}
+
+static void PlanliGonderimVerificationAndSearchNormalizer_Should_Work()
+{
+    var getUpcoming = typeof(PlanliGonderimController).GetMethod(nameof(PlanliGonderimController.GetUpcoming))!;
+    if (getUpcoming.GetCustomAttribute<AllowAnonymousAttribute>() == null)
+    {
+        throw new InvalidOperationException("PlanliGonderimController.GetUpcoming AllowAnonymous olmali.");
+    }
+
+    AssertMethodRole(typeof(PlanliGonderimController), nameof(PlanliGonderimController.Create), ApplicationRoles.Satici);
+    AssertMethodRole(typeof(PlanliGonderimController), nameof(PlanliGonderimController.Cancel), ApplicationRoles.Satici);
+
+    var sendWithContext = typeof(ChatHub).GetMethod(nameof(ChatHub.SendMessageWithContext));
+    if (sendWithContext == null || sendWithContext.GetParameters().Length != 4)
+    {
+        throw new InvalidOperationException("ChatHub.SendMessageWithContext(toUserId, message, urunId, talepId) tanimli olmali.");
+    }
+
+    // Sadece vergi no + email onayli satici Isletme + Uretici onayi olmadan dogrulanmis sayilmamali
+    var partialSeller = new Domain.Entities.SaticiProfili
+    {
+        VergiNo = "1234567890",
+        Kullanici = new Domain.Entities.ApplicationUser { EmailConfirmed = true },
+        IsletmeDogrulandiMi = true,
+        UreticiDogrulandiMi = false
+    };
+    if (Domain.Entities.SaticiProfili.IsVerified(partialSeller))
+    {
+        throw new InvalidOperationException("Isletme ve uretici dogrulamasi tamamlanmadan rozet verilmemeli.");
+    }
+
+    partialSeller.UreticiDogrulandiMi = true;
+    if (!Domain.Entities.SaticiProfili.IsVerified(partialSeller))
+    {
+        throw new InvalidOperationException("Tum dogrulamalar tamamlaninca rozet verilmeli.");
+    }
+
+    // Turkce karakter + ek toleransi ("posof peyniri" -> "Posof Göğermiş Peynir")
+    var tokens = Domain.Models.SearchNormalizer.Tokenize("posof peyniri");
+    if (!Domain.Models.SearchNormalizer.MatchesAllTokens("Posof Göğermiş Peynir 1kg", tokens))
+    {
+        throw new InvalidOperationException("Turkce karakter normalizasyonu posof peyniri aramasini eslestirmeliydi.");
     }
 }
 

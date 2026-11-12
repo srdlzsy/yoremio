@@ -25,6 +25,15 @@ namespace Infrastructure.Hubs
             await SendMessageInternalAsync(contextUserId, toUserId, message);
         }
 
+        public async Task SendMessageWithContext(string toUserId, string message, int? urunId = null, int? talepId = null)
+        {
+            var contextUserId = Context.UserIdentifier;
+            if (string.IsNullOrWhiteSpace(contextUserId))
+                throw new HubException("Kimlik doğrulama hatası.");
+
+            await SendMessageInternalAsync(contextUserId, toUserId, message, urunId, talepId);
+        }
+
         // Eski istemciler için alternatif isimle uyumluluk metodu.
         public async Task SendMessageLegacy(string fromUserId, string toUserId, string message)
         {
@@ -63,11 +72,11 @@ namespace Infrastructure.Hubs
             }
         }
 
-        private async Task SendMessageInternalAsync(string fromUserId, string toUserId, string message)
+        private async Task SendMessageInternalAsync(string fromUserId, string toUserId, string message, int? urunId = null, int? talepId = null)
         {
             try
             {
-                var savedMessage = await _chatService.SendMessageAsync(fromUserId, toUserId, message);
+                var savedMessage = await _chatService.SendMessageAsync(fromUserId, toUserId, message, urunId, talepId);
                 var receiverMessage = CloneForReceiver(savedMessage);
 
                 // Legacy events: mevcut istemciler kırılmasın.

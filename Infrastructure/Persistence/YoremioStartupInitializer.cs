@@ -168,6 +168,8 @@ namespace Infrastructure.Persistence
                 profile.Sehir = seed.City;
                 profile.Ilce = seed.District;
                 profile.AktifMi = true;
+                profile.IsletmeDogrulandiMi = true;
+                profile.UreticiDogrulandiMi = true;
                 profile.KayitTarihi = seed.CreatedAt;
 
                 users[seed.Email] = user;

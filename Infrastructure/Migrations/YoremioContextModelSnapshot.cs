@@ -197,7 +197,17 @@ namespace Infrastructure.Migrations
                     b.Property<DateTime>("SentAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("TalepId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("UrunId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TalepId");
+
+                    b.HasIndex("UrunId");
 
                     b.HasIndex("ReceiverId", "SenderId", "SentAt");
 
@@ -392,6 +402,65 @@ namespace Infrastructure.Migrations
                     b.ToTable("OrtakAlimKatilimlari");
                 });
 
+            modelBuilder.Entity("Domain.Entities.PlanliGonderim", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Aciklama")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("AktifMi")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Baslik")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime>("GonderimTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("HedefSehir")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("MenseiSehir")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTime>("OlusturmaTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SaticiId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("SogukZincirVarMi")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("SonTalepTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TahminiUrunNotu")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SaticiId");
+
+                    b.HasIndex("HedefSehir", "AktifMi", "GonderimTarihi");
+
+                    b.ToTable("PlanliGonderimler");
+                });
+
             modelBuilder.Entity("Domain.Entities.Puan", b =>
                 {
                     b.Property<int>("Id")
@@ -449,6 +518,9 @@ namespace Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<bool>("IsletmeDogrulandiMi")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("KapakResimUrl")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -469,6 +541,9 @@ namespace Infrastructure.Migrations
                     b.Property<string>("Sehir")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("UreticiDogrulandiMi")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("VergiNo")
                         .IsRequired()
@@ -620,6 +695,10 @@ namespace Infrastructure.Migrations
                         .HasColumnType("character varying(60)");
 
                     b.Property<int?>("UrunId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -1076,9 +1155,23 @@ namespace Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Domain.Entities.Talep", "Talep")
+                        .WithMany()
+                        .HasForeignKey("TalepId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Domain.Entities.Urun", "Urun")
+                        .WithMany()
+                        .HasForeignKey("UrunId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Receiver");
 
                     b.Navigation("Sender");
+
+                    b.Navigation("Talep");
+
+                    b.Navigation("Urun");
                 });
 
             modelBuilder.Entity("Domain.Entities.FiyatAlarmi", b =>
@@ -1142,6 +1235,17 @@ namespace Infrastructure.Migrations
                     b.Navigation("Alici");
 
                     b.Navigation("OrtakAlim");
+                });
+
+            modelBuilder.Entity("Domain.Entities.PlanliGonderim", b =>
+                {
+                    b.HasOne("Domain.Entities.SaticiProfili", "Satici")
+                        .WithMany()
+                        .HasForeignKey("SaticiId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Satici");
                 });
 
             modelBuilder.Entity("Domain.Entities.Puan", b =>

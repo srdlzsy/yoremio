@@ -34,9 +34,13 @@ namespace Domain.Entities
         public string? KapakResimUrl { get; set; }
 
         /// <summary>
-        /// null: otomatik kural (EmailConfirmed + VergiNo), true: admin onayli, false: admin red/iptal.
+        /// null: isletme + uretici + e-posta dogrulama kurali, true: admin onayli, false: admin red/iptal.
         /// </summary>
         public bool? AdminDogrulandiMi { get; set; }
+
+        public bool IsletmeDogrulandiMi { get; set; } = false;
+
+        public bool UreticiDogrulandiMi { get; set; } = false;
 
         public DateTime KayitTarihi { get; set; } = DateTime.UtcNow;
 
@@ -64,7 +68,9 @@ namespace Domain.Entities
 
             return !string.IsNullOrWhiteSpace(satici.VergiNo)
                 && satici.Kullanici is not null
-                && satici.Kullanici.EmailConfirmed;
+                && satici.Kullanici.EmailConfirmed
+                && satici.IsletmeDogrulandiMi
+                && satici.UreticiDogrulandiMi;
         }
     }
 }

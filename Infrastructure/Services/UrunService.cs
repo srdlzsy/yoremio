@@ -21,6 +21,7 @@ namespace Infrastructure.Services
         private readonly IFiyatAlarmiRepository? _fiyatAlarmiRepository;
         private readonly IStokAlarmiRepository? _stokAlarmiRepository;
         private readonly IOrtakAlimRepository? _ortakAlimRepository;
+        private readonly IPlanliGonderimRepository? _planliGonderimRepository;
         private readonly IBildirimService? _bildirimService;
 
         public UrunService(
@@ -34,7 +35,8 @@ namespace Infrastructure.Services
             IFiyatAlarmiRepository? fiyatAlarmiRepository = null,
             IBildirimService? bildirimService = null,
             IStokAlarmiRepository? stokAlarmiRepository = null,
-            IOrtakAlimRepository? ortakAlimRepository = null)
+            IOrtakAlimRepository? ortakAlimRepository = null,
+            IPlanliGonderimRepository? planliGonderimRepository = null)
         {
             _urunRepository = urunRepository;
             _urunFavoriRepository = urunFavoriRepository;
@@ -47,6 +49,7 @@ namespace Infrastructure.Services
             _bildirimService = bildirimService;
             _stokAlarmiRepository = stokAlarmiRepository;
             _ortakAlimRepository = ortakAlimRepository;
+            _planliGonderimRepository = planliGonderimRepository;
         }
 
         public async Task<Urun> UrunEkleAsync(string saticiId, UrunEkleDto dto)
@@ -171,6 +174,12 @@ namespace Infrastructure.Services
                     .Select(OrtakAlimService.MapToDto)
                     .ToArray();
 
+            var planliGonderimler = _planliGonderimRepository == null
+                ? Array.Empty<PlanliGonderimDto>()
+                : (await _planliGonderimRepository.GetUpcomingAsync(hedefSehir, query.UretimSehir, take: 4))
+                    .Select(PlanliGonderimService.MapToDto)
+                    .ToArray();
+
             return new UrunKesfetSonucDto
             {
                 Sonuclar = sonuclar,
@@ -180,6 +189,7 @@ namespace Infrastructure.Services
                     SehreGonderimYapanlar = sehreGonderim,
                     StoguTukenenUrunler = stoguTukenen,
                     AktifOrtakAlimlar = ortakAlimlar,
+                    PlanliGonderimler = planliGonderimler,
                     BenimIcinBulOnerisi = new BenimIcinBulOneriDto
                     {
                         UrunBulunamadi = true,

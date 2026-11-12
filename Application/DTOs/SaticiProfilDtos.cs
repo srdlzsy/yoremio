@@ -18,6 +18,9 @@ namespace Application.DTOs
         public bool AktifMi { get; set; }
         public string PaketTuru { get; set; } = Domain.Constants.SaticiPaketTurleri.Ucretsiz;
         public bool DogrulanmisSatici { get; set; }
+        public bool EpostaDogrulandi { get; set; }
+        public bool IsletmeDogrulandi { get; set; }
+        public bool UreticiDogrulandi { get; set; }
         public bool? AdminDogrulamaDurumu { get; set; }
         public string? Email { get; set; }
         public string? UserName { get; set; }
@@ -51,6 +54,9 @@ namespace Application.DTOs
         public string KullaniciId { get; set; } = string.Empty;
         public string MagazaAdi { get; set; } = string.Empty;
         public bool DogrulanmisSatici { get; set; }
+        public bool EpostaDogrulandi { get; set; }
+        public bool IsletmeDogrulandi { get; set; }
+        public bool UreticiDogrulandi { get; set; }
         public int UrunSayisi { get; set; }
         public double OrtalamaPuan { get; set; }
         public int ToplamPuan { get; set; }
@@ -67,6 +73,9 @@ namespace Application.DTOs
         public string? Ilce { get; set; }
         public string? Aciklama { get; set; }
         public bool DogrulanmisSatici { get; set; }
+        public bool EpostaDogrulandi { get; set; }
+        public bool IsletmeDogrulandi { get; set; }
+        public bool UreticiDogrulandi { get; set; }
         public int UrunSayisi { get; set; }
         public double OrtalamaPuan { get; set; }
         public int ToplamYorum { get; set; }

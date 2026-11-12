@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Domain.Entities
 {
     public class Talep
@@ -19,6 +21,10 @@ namespace Domain.Entities
         public string Durum { get; set; } = Domain.Constants.TalepDurumlari.Acik;
         public bool? AliciGerceklestiOnayi { get; set; }
         public bool? SaticiGerceklestiOnayi { get; set; }
+
+        [ConcurrencyCheck]
+        public int Version { get; set; } = 1;
+
         public DateTime OlusturmaTarihi { get; set; } = DateTime.UtcNow;
         public DateTime? GuncellemeTarihi { get; set; }
 

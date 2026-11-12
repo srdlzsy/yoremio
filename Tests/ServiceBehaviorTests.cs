@@ -35,7 +35,10 @@ internal static class ServiceBehaviorTests
             ("UrunService detay okumasinda goruntulenme ve kart alanlarini donmeli", UrunService_Should_IncrementViews_AndExposeCardMetadata),
             ("UrunService konum bazli kesifte sonuc yoksa akilli alternatif ve Benim Icin Bul onermeli", UrunService_Kesfet_Should_ReturnAlternativesAndFindForMePrompt_WhenEmpty),
             ("UrunService stok sifirdan yukselince stok alarmi bildirimini tetiklemeli", UrunService_Should_TriggerStokAlarmi_WhenProductRestocked),
-            ("OrtakAlimService alici onerisi satici onayi ve hedef katilimciya ulasmayi yonetmeli", OrtakAlimService_Should_SupportProposalApprovalAndParticipantTarget)
+            ("OrtakAlimService alici onerisi satici onayi ve hedef katilimciya ulasmayi yonetmeli", OrtakAlimService_Should_SupportProposalApprovalAndParticipantTarget),
+            ("TalepService suresi dolan talebe teklif reddetmeli ve kabulde idempotent calismali", TalepService_Should_RejectExpiredOfferDeadline_AndBeIdempotentOnAccept),
+            ("ChatService urun ve talep baglamini mesaj ve konusma ozetinde saklamali", ChatService_Should_PersistProductAndDemandContext),
+            ("PlanliGonderimService sehrime gelen urunler sevkiyatini olusturup takipcilere bildirmeli", PlanliGonderimService_Should_CreateAndNotifyFollowers)
         };
     }
 
@@ -664,9 +667,24 @@ internal static class ServiceBehaviorTests
         public Task<IEnumerable<ChatMessage>> GetAllAsync() => Task.FromResult<IEnumerable<ChatMessage>>(Messages);
         public Task<ChatMessage?> GetByIdAsync(object id) => Task.FromResult(Messages.FirstOrDefault(m => m.Id == Convert.ToInt64(id)));
         public Task<ChatMessage?> GetByIdWithUsersAsync(long id) => Task.FromResult(Messages.FirstOrDefault(m => m.Id == id));
-        public Task<int> GetConversationMessageCountAsync(string firstUserId, string secondUserId) => Task.FromResult(0);
-        public Task<IReadOnlyCollection<ChatMessage>> GetConversationMessagesAsync(string firstUserId, string secondUserId, int skip, int take)
-            => Task.FromResult<IReadOnlyCollection<ChatMessage>>(Array.Empty<ChatMessage>());
+        public Task<int> GetConversationMessageCountAsync(string firstUserId, string secondUserId, int? urunId = null, int? talepId = null)
+        {
+            var q = Messages.Where(m =>
+                (m.SenderId == firstUserId && m.ReceiverId == secondUserId) ||
+                (m.SenderId == secondUserId && m.ReceiverId == firstUserId));
+            if (urunId.HasValue) q = q.Where(m => m.UrunId == urunId.Value);
+            if (talepId.HasValue) q = q.Where(m => m.TalepId == talepId.Value);
+            return Task.FromResult(q.Count());
+        }
+        public Task<IReadOnlyCollection<ChatMessage>> GetConversationMessagesAsync(string firstUserId, string secondUserId, int skip, int take, int? urunId = null, int? talepId = null)
+        {
+            var q = Messages.Where(m =>
+                (m.SenderId == firstUserId && m.ReceiverId == secondUserId) ||
+                (m.SenderId == secondUserId && m.ReceiverId == firstUserId));
+            if (urunId.HasValue) q = q.Where(m => m.UrunId == urunId.Value);
+            if (talepId.HasValue) q = q.Where(m => m.TalepId == talepId.Value);
+            return Task.FromResult<IReadOnlyCollection<ChatMessage>>(q.Skip(skip).Take(take).ToList());
+        }
         public Task<IReadOnlyCollection<ChatMessage>> GetRecentMessagesForUserAsync(string userId, int take)
             => Task.FromResult<IReadOnlyCollection<ChatMessage>>(Messages.Where(m => m.SenderId == userId || m.ReceiverId == userId).Take(take).ToList());
         public Task<int> GetUnreadCountAsync(string receiverId, string senderId)
@@ -1333,6 +1351,125 @@ internal static class ServiceBehaviorTests
         if (full.Durum != OrtakAlimDurumlari.HedefTamamlandi || full.MevcutKatilimci != 2 || full.ToplamTalepMiktari != 5)
         {
             throw new InvalidOperationException("Minimum katilimciya ulasilinca ortak alim HEDEF_TAMAMLANDI olmaliydi.");
+        }
+    }
+
+    private sealed class FakePlanliGonderimRepository : IPlanliGonderimRepository
+    {
+        public List<PlanliGonderim> Items { get; } = new();
+        private int _nextId = 1;
+
+        public Task AddAsync(PlanliGonderim entity)
+        {
+            if (entity.Id == 0) entity.Id = _nextId++;
+            Items.Add(entity);
+            return Task.CompletedTask;
+        }
+
+        public Task<IEnumerable<PlanliGonderim>> FindAsync(Expression<Func<PlanliGonderim, bool>> predicate)
+            => Task.FromResult<IEnumerable<PlanliGonderim>>(Items.Where(predicate.Compile()).ToList());
+        public Task<IEnumerable<PlanliGonderim>> GetAllAsync() => Task.FromResult<IEnumerable<PlanliGonderim>>(Items);
+        public Task<PlanliGonderim?> GetByIdAsync(object id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == Convert.ToInt32(id)));
+        public Task<PlanliGonderim?> GetByIdWithSellerAsync(int id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == id));
+        public Task<IReadOnlyCollection<PlanliGonderim>> GetUpcomingAsync(string? hedefSehir = null, string? menseiSehir = null, string? saticiId = null, int take = 20)
+        {
+            var q = Items.Where(p => p.AktifMi);
+            if (!string.IsNullOrWhiteSpace(hedefSehir))
+                q = q.Where(p => p.HedefSehir.Contains(hedefSehir.Trim(), StringComparison.OrdinalIgnoreCase));
+            return Task.FromResult<IReadOnlyCollection<PlanliGonderim>>(q.Take(take).ToList());
+        }
+        public void Remove(PlanliGonderim entity) => Items.Remove(entity);
+        public Task<bool> SaveChangesAsync() => Task.FromResult(true);
+        public void Update(PlanliGonderim entity) { }
+    }
+
+    private static async Task TalepService_Should_RejectExpiredOfferDeadline_AndBeIdempotentOnAccept()
+    {
+        var urunRepo = new FakeUrunRepository();
+        urunRepo.Items.Add(new Urun { Id = 301, Adi = "Yayla Tereyagi", SaticiId = "seller-1", AktifMi = true, Fiyat = 320m });
+
+        var talepRepo = new FakeTalepRepository(urunRepo);
+        talepRepo.Talepler.Add(new Talep
+        {
+            Id = 500,
+            AliciId = "buyer-1",
+            UrunId = 301,
+            Urun = urunRepo.Items[0],
+            Miktar = 5,
+            Durum = TalepDurumlari.Acik,
+            SonTeklifTarihi = DateTime.UtcNow.AddMinutes(-10) // Suresi dolmus
+        });
+
+        var service = new TalepService(talepRepo, urunRepo, new FakeBildirimService());
+
+        await AssertThrowsAsync<ArgumentException>(() =>
+            service.TeklifVerAsync(500, "seller-1", new TalepTeklifOlusturDto { BirimFiyat = 300m, Mesaj = "Gec teklif" }));
+
+        // Gecerli sureli talepte teklif kabul idempotency testi
+        var activeTalep = await service.TalepOlusturAsync("buyer-1", new TalepOlusturDto { UrunId = 301, Miktar = 2 });
+        var offer = await service.TeklifVerAsync(activeTalep.Id, "seller-1", new TalepTeklifOlusturDto { BirimFiyat = 310m, Mesaj = "Hazir" });
+
+        var acceptedFirst = await service.TeklifKabulEtAsync(offer.Id, "buyer-1");
+        var acceptedSecond = await service.TeklifKabulEtAsync(offer.Id, "buyer-1");
+        if (acceptedFirst.Durum != TalepDurumlari.Anlasildi || acceptedSecond.Durum != TalepDurumlari.Anlasildi)
+        {
+            throw new InvalidOperationException("Teklif kabulu idempotent calismaliydi.");
+        }
+    }
+
+    private static async Task ChatService_Should_PersistProductAndDemandContext()
+    {
+        var chatRepo = new FakeChatMessageRepository();
+        chatRepo.Users["buyer-1"] = new ApplicationUser { Id = "buyer-1", UserName = "buyer", Email = "b@y.com" };
+        chatRepo.Users["seller-1"] = new ApplicationUser { Id = "seller-1", UserName = "seller", Email = "s@y.com" };
+
+        var service = new ChatService(chatRepo, new FakeBildirimService());
+
+        var msg = await service.SendMessageAsync("buyer-1", "seller-1", "Posof peyniri kargo durumu?", urunId: 42, talepId: 11);
+        if (msg.UrunId != 42 || msg.TalepId != 11)
+        {
+            throw new InvalidOperationException("Chat mesajinda UrunId ve TalepId baglami saklanmaliydi.");
+        }
+
+        var filtered = await service.GetConversationMessagesAsync("buyer-1", "seller-1", 1, 20, urunId: 42, talepId: 11);
+        if (filtered.Items.Count != 1)
+        {
+            throw new InvalidOperationException("Urun/Talep baglamina gore mesajlar filtrelenmeliydi.");
+        }
+    }
+
+    private static async Task PlanliGonderimService_Should_CreateAndNotifyFollowers()
+    {
+        var repo = new FakePlanliGonderimRepository();
+        var saticiRepo = new FakeSaticiProfiliRepository();
+        var seller = new SaticiProfili { KullaniciId = "seller-1", MagazaAdi = "Ardahan Mandira", Sehir = "Ardahan", AktifMi = true };
+        saticiRepo.Items.Add(seller);
+
+        var takipRepo = new FakeSaticiTakipRepository(saticiRepo);
+        takipRepo.Items.Add(new SaticiTakip { AliciId = "buyer-1", SaticiId = "seller-1", BildirimAcikMi = true });
+        var bildirim = new FakeBildirimService();
+
+        var service = new PlanliGonderimService(repo, saticiRepo, takipRepo, bildirim);
+        var created = await service.OlusturAsync("seller-1", new PlanliGonderimOlusturDto
+        {
+            Baslik = "Cuma Bursa Yoresel Peynir Sevkiyati",
+            MenseiSehir = "Ardahan",
+            HedefSehir = "Bursa",
+            TahminiUrunNotu = "Posof gogermis ve eski kasar",
+            GonderimTarihi = DateTime.UtcNow.AddDays(3),
+            SonTalepTarihi = DateTime.UtcNow.AddDays(2),
+            SogukZincirVarMi = true
+        });
+
+        if (created.HedefSehir != "Bursa" || !created.SogukZincirVarMi || bildirim.Created.Count != 1 || bildirim.Created[0].Tur != BildirimTurleri.GonderimPlani)
+        {
+            throw new InvalidOperationException("Planli gonderim olusturulup takipciye GONDERIM_PLANI bildirimi gitmeliydi.");
+        }
+
+        var upcoming = await service.GetUpcomingAsync(hedefSehir: "Bursa");
+        if (upcoming.Count != 1)
+        {
+            throw new InvalidOperationException("Bursa hedef sehrine planli gonderim listelenmeliydi.");
         }
     }
 }

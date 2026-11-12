@@ -21,7 +21,7 @@ namespace Infrastructure.Services
             _bildirimService = bildirimService;
         }
 
-        public async Task<ChatMessageDto> SendMessageAsync(string senderId, string receiverId, string message)
+        public async Task<ChatMessageDto> SendMessageAsync(string senderId, string receiverId, string message, int? urunId = null, int? talepId = null)
         {
             senderId = senderId?.Trim() ?? string.Empty;
             receiverId = receiverId?.Trim() ?? string.Empty;
@@ -61,6 +61,8 @@ namespace Infrastructure.Services
             {
                 SenderId = senderId,
                 ReceiverId = receiverId,
+                UrunId = urunId,
+                TalepId = talepId,
                 Message = message,
                 SentAt = DateTime.UtcNow
             };
@@ -68,15 +70,21 @@ namespace Infrastructure.Services
             await _chatMessageRepository.AddAsync(entity);
             await _chatMessageRepository.SaveChangesAsync();
 
+            var aksiyonUrl = talepId.HasValue
+                ? $"/talepler/{talepId.Value}"
+                : urunId.HasValue
+                    ? $"/urunler/{urunId.Value}"
+                    : $"/chat/{senderId}";
+
             await _bildirimService.BildirimOlusturAsync(new BildirimOlusturDto
             {
                 KullaniciId = receiverId,
                 Tur = BildirimTurleri.Mesaj,
                 Baslik = "Yeni mesaj",
                 Mesaj = "Yeni bir mesajiniz var.",
-                IlgiliVarlikTuru = "ChatMessage",
-                IlgiliVarlikId = entity.Id.ToString(),
-                AksiyonUrl = $"/chat/{senderId}"
+                IlgiliVarlikTuru = talepId.HasValue ? "Talep" : urunId.HasValue ? "Urun" : "ChatMessage",
+                IlgiliVarlikId = (talepId?.ToString() ?? urunId?.ToString() ?? entity.Id.ToString()),
+                AksiyonUrl = aksiyonUrl
             });
 
             return MapToDto(entity, senderId);
@@ -109,6 +117,9 @@ namespace Infrastructure.Services
                     LastMessage = lastMessage.Message,
                     LastSenderId = lastMessage.SenderId,
                     LastMessageAt = lastMessage.SentAt,
+                    LastUrunId = lastMessage.UrunId,
+                    LastUrunAdi = lastMessage.Urun?.Adi,
+                    LastTalepId = lastMessage.TalepId,
                     UnreadCount = unreadCounts.GetValueOrDefault(group.Key, 0)
                 });
             }
@@ -118,7 +129,7 @@ namespace Infrastructure.Services
                 .ToList();
         }
 
-        public async Task<ChatConversationMessagesDto> GetConversationMessagesAsync(string currentUserId, string otherUserId, int page, int pageSize)
+        public async Task<ChatConversationMessagesDto> GetConversationMessagesAsync(string currentUserId, string otherUserId, int page, int pageSize, int? urunId = null, int? talepId = null)
         {
             currentUserId = ValidateUserId(currentUserId);
             otherUserId = otherUserId?.Trim() ?? string.Empty;
@@ -136,8 +147,8 @@ namespace Infrastructure.Services
             var effectivePageSize = pageSize < 1 ? 50 : Math.Min(pageSize, MaxConversationPageSize);
             var skip = (effectivePage - 1) * effectivePageSize;
 
-            var totalCount = await _chatMessageRepository.GetConversationMessageCountAsync(currentUserId, otherUserId);
-            var messages = await _chatMessageRepository.GetConversationMessagesAsync(currentUserId, otherUserId, skip, effectivePageSize);
+            var totalCount = await _chatMessageRepository.GetConversationMessageCountAsync(currentUserId, otherUserId, urunId, talepId);
+            var messages = await _chatMessageRepository.GetConversationMessagesAsync(currentUserId, otherUserId, skip, effectivePageSize, urunId, talepId);
 
             return new ChatConversationMessagesDto
             {
@@ -168,6 +179,9 @@ namespace Infrastructure.Services
                 Id = message.Id,
                 SenderId = message.SenderId,
                 ReceiverId = message.ReceiverId,
+                UrunId = message.UrunId,
+                UrunAdi = message.Urun?.Adi,
+                TalepId = message.TalepId,
                 Message = message.Message,
                 SentAt = message.SentAt,
                 ReadAt = message.ReadAt,

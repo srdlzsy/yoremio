@@ -28,6 +28,7 @@ namespace Infrastructure.Persistence
         public DbSet<StokAlarmi> StokAlarmlari { get; set; } = null!;
         public DbSet<OrtakAlim> OrtakAlimlar { get; set; } = null!;
         public DbSet<OrtakAlimKatilim> OrtakAlimKatilimlari { get; set; } = null!;
+        public DbSet<PlanliGonderim> PlanliGonderimler { get; set; } = null!;
         public DbSet<Yorum> Yorumlar { get; set; } = null!;
         public DbSet<Puan> Puanlar { get; set; } = null!;
         public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
@@ -417,6 +418,30 @@ namespace Infrastructure.Persistence
             builder.Entity<Urun>()
                 .Property(u => u.GonderimSehirleri)
                 .HasMaxLength(500);
+
+            builder.Entity<ChatMessage>()
+                .HasOne(m => m.Urun)
+                .WithMany()
+                .HasForeignKey(m => m.UrunId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<ChatMessage>()
+                .HasOne(m => m.Talep)
+                .WithMany()
+                .HasForeignKey(m => m.TalepId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<ChatMessage>()
+                .HasIndex(m => new { m.SenderId, m.ReceiverId, m.SentAt });
+
+            builder.Entity<PlanliGonderim>()
+                .HasOne(p => p.Satici)
+                .WithMany()
+                .HasForeignKey(p => p.SaticiId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<PlanliGonderim>()
+                .HasIndex(p => new { p.HedefSehir, p.AktifMi, p.GonderimTarihi });
 
             builder.Entity<Urun>()
                   .HasIndex(u => u.SaticiId);

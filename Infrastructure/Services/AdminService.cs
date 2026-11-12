@@ -101,9 +101,22 @@ namespace Infrastructure.Services
             }
 
             satici.AdminDogrulandiMi = dto.DogrulandiMi;
-            if (dto.DogrulandiMi == true && !satici.AktifMi)
+            if (dto.IsletmeDogrulandiMi.HasValue)
             {
-                satici.AktifMi = true;
+                satici.IsletmeDogrulandiMi = dto.IsletmeDogrulandiMi.Value;
+            }
+            if (dto.UreticiDogrulandiMi.HasValue)
+            {
+                satici.UreticiDogrulandiMi = dto.UreticiDogrulandiMi.Value;
+            }
+            if (dto.DogrulandiMi == true)
+            {
+                if (!dto.IsletmeDogrulandiMi.HasValue) satici.IsletmeDogrulandiMi = true;
+                if (!dto.UreticiDogrulandiMi.HasValue) satici.UreticiDogrulandiMi = true;
+                if (!satici.AktifMi)
+                {
+                    satici.AktifMi = true;
+                }
             }
 
             await _context.SaveChangesAsync();
@@ -427,6 +440,8 @@ namespace Infrastructure.Services
                 Ilce = sp?.Ilce,
                 SaticiAktifMi = sp?.AktifMi,
                 DogrulanmisSatici = SaticiProfili.IsVerified(sp),
+                IsletmeDogrulandi = sp?.IsletmeDogrulandiMi ?? false,
+                UreticiDogrulandi = sp?.UreticiDogrulandiMi ?? false,
                 AdminDogrulamaDurumu = sp?.AdminDogrulandiMi,
                 UrunSayisi = sp?.Urunler.Count ?? 0,
                 KayitTarihi = sp?.KayitTarihi

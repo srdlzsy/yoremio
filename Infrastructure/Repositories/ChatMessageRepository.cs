@@ -25,6 +25,7 @@ namespace Infrastructure.Repositories
                 .AsNoTracking()
                 .Include(message => message.Sender)
                 .Include(message => message.Receiver)
+                .Include(message => message.Urun)
                 .FirstOrDefaultAsync(message => message.Id == id);
         }
 
@@ -36,6 +37,7 @@ namespace Infrastructure.Repositories
                     .ThenInclude(user => user!.SaticiProfili)
                 .Include(message => message.Receiver)
                     .ThenInclude(user => user!.SaticiProfili)
+                .Include(message => message.Urun)
                 .Where(message => message.SenderId == userId || message.ReceiverId == userId)
                 .OrderByDescending(message => message.SentAt)
                 .ThenByDescending(message => message.Id)
@@ -43,13 +45,26 @@ namespace Infrastructure.Repositories
                 .ToListAsync();
         }
 
-        public async Task<IReadOnlyCollection<ChatMessage>> GetConversationMessagesAsync(string firstUserId, string secondUserId, int skip, int take)
+        public async Task<IReadOnlyCollection<ChatMessage>> GetConversationMessagesAsync(string firstUserId, string secondUserId, int skip, int take, int? urunId = null, int? talepId = null)
         {
-            var messages = await _dbContext.ChatMessages
+            var query = _dbContext.ChatMessages
                 .AsNoTracking()
+                .Include(message => message.Urun)
                 .Where(message =>
                     (message.SenderId == firstUserId && message.ReceiverId == secondUserId) ||
-                    (message.SenderId == secondUserId && message.ReceiverId == firstUserId))
+                    (message.SenderId == secondUserId && message.ReceiverId == firstUserId));
+
+            if (urunId.HasValue)
+            {
+                query = query.Where(message => message.UrunId == urunId.Value);
+            }
+
+            if (talepId.HasValue)
+            {
+                query = query.Where(message => message.TalepId == talepId.Value);
+            }
+
+            var messages = await query
                 .OrderByDescending(message => message.SentAt)
                 .ThenByDescending(message => message.Id)
                 .Skip(skip)
@@ -62,13 +77,25 @@ namespace Infrastructure.Repositories
                 .ToList();
         }
 
-        public async Task<int> GetConversationMessageCountAsync(string firstUserId, string secondUserId)
+        public async Task<int> GetConversationMessageCountAsync(string firstUserId, string secondUserId, int? urunId = null, int? talepId = null)
         {
-            return await _dbContext.ChatMessages
+            var query = _dbContext.ChatMessages
                 .AsNoTracking()
-                .CountAsync(message =>
+                .Where(message =>
                     (message.SenderId == firstUserId && message.ReceiverId == secondUserId) ||
                     (message.SenderId == secondUserId && message.ReceiverId == firstUserId));
+
+            if (urunId.HasValue)
+            {
+                query = query.Where(message => message.UrunId == urunId.Value);
+            }
+
+            if (talepId.HasValue)
+            {
+                query = query.Where(message => message.TalepId == talepId.Value);
+            }
+
+            return await query.CountAsync();
         }
 
         public async Task<int> GetUnreadCountAsync(string receiverId, string senderId)

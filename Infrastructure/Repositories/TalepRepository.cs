@@ -126,6 +126,18 @@ namespace Infrastructure.Repositories
             await _dbContext.Set<TalepEslesme>().AddRangeAsync(eslesmeler);
         }
 
+        public override async Task<bool> SaveChangesAsync()
+        {
+            try
+            {
+                return await _context.SaveChangesAsync() > 0;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                throw new ArgumentException("Talep eszamanli baska bir islemle guncellendi. Lutfen sayfayi yenileyip tekrar deneyin.", ex);
+            }
+        }
+
         private IQueryable<Talep> BuildDetailsQuery(bool asNoTracking)
         {
             var query = _dbContext.Set<Talep>().AsQueryable();

@@ -11,5 +11,6 @@ namespace Domain.Constants
         public const string FiyatAlarmi = "FIYAT_ALARMI";
         public const string StokAlarmi = "STOK_ALARMI";
         public const string OrtakAlim = "ORTAK_ALIM";
+        public const string GonderimPlani = "GONDERIM_PLANI";
     }
 }

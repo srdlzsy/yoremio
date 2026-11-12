@@ -244,6 +244,11 @@ namespace Infrastructure.Services
                 throw new ArgumentException("Sadece acik taleplere teklif verilebilir.");
             }
 
+            if (talep.SonTeklifTarihi.HasValue && talep.SonTeklifTarihi.Value <= DateTime.UtcNow)
+            {
+                throw new ArgumentException("Bu talebin son teklif suresi dolmus.");
+            }
+
             if (talep.TalepTuru == TalepTurleri.AcikPazar)
             {
                 if (string.Equals(talep.AliciId, saticiId, StringComparison.Ordinal))
@@ -328,6 +333,12 @@ namespace Infrastructure.Services
                 throw new UnauthorizedAccessException("Bu teklif uzerinde islem yetkiniz yok.");
             }
 
+            // Idempotency: cift tiklama / ag tekrarinda ayni teklif zaten kabul edilmisse mevcut sonucu don
+            if (teklif.Talep.Durum == TalepDurumlari.Anlasildi && teklif.Durum == TalepTeklifDurumlari.Kabul)
+            {
+                return MapTalepDto(teklif.Talep);
+            }
+
             if (teklif.Talep.Durum != TalepDurumlari.Acik)
             {
                 throw new ArgumentException("Bu talep zaten sonuclanmis.");
@@ -339,6 +350,7 @@ namespace Infrastructure.Services
             }
 
             teklif.Talep.Durum = TalepDurumlari.Anlasildi;
+            teklif.Talep.Version += 1;
             teklif.Talep.GuncellemeTarihi = DateTime.UtcNow;
 
             foreach (var item in teklif.Talep.Teklifler)
