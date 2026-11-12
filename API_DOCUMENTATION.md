@@ -1952,6 +1952,14 @@ Bölgesel toplu sipariş organizasyonu (ör. Ardahan üreticisinden Bursa teslim
 - `DELETE /api/OrtakAlim/{id}/katil` (`ALICI`): Katılımı iptal eder.
 - `PATCH /api/OrtakAlim/{id}/durum` (`SATICI`): `TESLIM_EDILDI` veya `IPTAL` durum güncellemesi yapar; katılımcılara bildirim gönderir.
 
+### 12.9 Şehrime Gelen Ürünler (Planlı Gönderim API)
+
+Üreticilerin belirli şehirlere planladığı sevkiyat tarihlerini duyurması için:
+
+- `GET /api/PlanliGonderim?hedefSehir=&menseiSehir=&saticiId=&take=20` (`AllowAnonymous`): Yaklaşan planlı şehir sevkiyatlarını (`gonderimTarihi`, `sonTalepTarihi`, `sogukZincirVarMi`, `tahminiUrunNotu`) listeler; `GET /api/Urun/kesfet` alternatiflerinde de döner.
+- `POST /api/PlanliGonderim` (`SATICI`): Yeni planlı gönderim oluşturur ve takipçilere `GONDERIM_PLANI` bildirimi gönderir.
+- `DELETE /api/PlanliGonderim/{id}` (`SATICI`): Planlı gönderimi iptal/pasif eder.
+
 ## 13. Chat API
 
 ### 13.1 Chat DTO'ları
@@ -1967,6 +1975,9 @@ Bölgesel toplu sipariş organizasyonu (ör. Ardahan üreticisinden Bursa teslim
   "lastMessage": "Merhaba, ürün hala stokta mı?",
   "lastSenderId": "other-user-id",
   "lastMessageAt": "2026-06-15T10:20:30Z",
+  "lastUrunId": 10,
+  "lastUrunAdi": "Yayla Balı",
+  "lastTalepId": null,
   "unreadCount": 2
 }
 ```
@@ -1980,6 +1991,9 @@ Bölgesel toplu sipariş organizasyonu (ör. Ardahan üreticisinden Bursa teslim
   "id": 123,
   "senderId": "sender-user-id",
   "receiverId": "receiver-user-id",
+  "urunId": 10,
+  "urunAdi": "Yayla Balı",
+  "talepId": null,
   "message": "Merhaba, ürün hala stokta mı?",
   "sentAt": "2026-06-15T10:20:30Z",
   "readAt": null,
@@ -2018,7 +2032,7 @@ Response:
 
 ### 13.3 Konuşma Mesajları
 
-`GET /api/Chat/messages/{otherUserId}?page=1&pageSize=50`
+`GET /api/Chat/messages/{otherUserId}?page=1&pageSize=50&urunId=&talepId=`
 
 Auth: Var
 
@@ -2026,6 +2040,8 @@ Query:
 
 - `page`: default 1
 - `pageSize`: default 50, max 100
+- `urunId`: opsiyonel ürün bağlam filtresi
+- `talepId`: opsiyonel talep bağlam filtresi
 
 Mantık:
 
@@ -2047,7 +2063,9 @@ Body:
 
 ```json
 {
-  "message": "Merhaba, ürün hala stokta mı?"
+  "message": "Merhaba, ürün hala stokta mı?",
+  "urunId": 10,
+  "talepId": null
 }
 ```
 
@@ -2270,7 +2288,7 @@ Tüm `/api/Admin/...` uçları yalnızca `ADMIN` rolü ile erişilebilir.
 
 - `GET /api/Admin/talep-bosluklari?limit=20`: Açık pazar taleplerini `(teslimatSehir, arananUrunAdi)` bazında gruplayarak arz boşluklarını (`talepSayisi`, `ortalamaEslesenSaticiSayisi`, `yeterliSaticiYokMu`) raporlar.
 - `GET /api/Admin/kullanicilar?rol=SATICI&search=posof&page=1&pageSize=20`: Sayfalı kullanıcı listesi (`roller`, `saticiDogrulandi`, `saticiAktifMi`, `urunSayisi`).
-- `PATCH /api/Admin/saticilar/{saticiId}/dogrulama`: Satıcı manuel doğrulama kararını set eder. Body: `{ "dogrulandi": true | false | null, "aciklama": "..." }`. (`null` verildiğinde profil tamamlanma kontrolüne geri döner.)
+- `PATCH /api/Admin/saticilar/{saticiId}/dogrulama`: Satıcı manuel doğrulama kararını ve alt doğrulama statülerini set eder. Body: `{ "dogrulandiMi": true | false | null, "isletmeDogrulandiMi": true, "ureticiDogrulandiMi": true, "not": "..." }`. (Otomatik doğrulama için artık yalnızca vergi no + e-posta yetmez; `isletmeDogrulandiMi` ve `ureticiDogrulandiMi` de `true` olmalıdır.)
 - `PATCH /api/Admin/saticilar/{saticiId}/durum`: Satıcıyı aktif/pasif yapar ve ilgili satıcıya bildirim gönderir. Body: `{ "aktifMi": false, "aciklama": "..." }`.
 - `GET /api/Admin/urunler?aktifMi=&saticiId=&search=&page=1&pageSize=20`: Tüm aktif/pasif ürünleri admin moderasyonu için sayfalı döner.
 - `PATCH /api/Admin/urunler/{urunId}/durum`: Uygunsuz ürünü pasife/aktife alır ve satıcıya bildirim gönderir. Body: `{ "aktifMi": false, "aciklama": "..." }`.
@@ -2311,6 +2329,7 @@ Client -> Server methodları:
 | Method | Parametreler | Açıklama |
 | --- | --- | --- |
 | `SendMessage` | `toUserId`, `message` | Ana canlı mesaj gönderme metodu. |
+| `SendMessageWithContext` | `toUserId`, `message`, `urunId`, `talepId` | Ürün veya talep bağlamı ile canlı mesaj gönderme metodu. |
 | `SendMessageLegacy` | `fromUserId`, `toUserId`, `message` | Eski istemciler için uyumluluk. `fromUserId` token kullanıcısıyla aynı olmalı. |
 | `MarkConversationRead` | `otherUserId` | Konuşmayı okundu işaretler. |
 | `Typing` | `toUserId` | Karşı tarafa typing event gönderir. |
@@ -2327,7 +2346,7 @@ Server -> Client eventleri:
 | `ConversationRead` | `otherUserId`, `markedCount`, `readAtUtc` | Caller'ın okundu işaretleme sonucu. |
 | `MessagesRead` | `readerUserId`, `readAtUtc` | Karşı taraf mesajlarınızı okudu. |
 | `Typing` | `fromUserId` | Karşı kullanıcı yazıyor. |
-| `NotificationReceived` | `BildirimDto` | Yeni bildirim oluştuğunda (`TALEP`, `TEKLIF`, `ACIK_TALEP`, `FIYAT_ALARMI`, `STOK_ALARMI`, `URUN`, `HASAT`, `ORTAK_ALIM`, `MESAJ`, `SISTEM`, `DESTEK`) alıcıya canlı payload (`okunmamisSayisi` dahil) gönderilir. |
+| `NotificationReceived` | `BildirimDto` | Yeni bildirim oluştuğunda (`TALEP`, `TEKLIF`, `ACIK_TALEP`, `FIYAT_ALARMI`, `STOK_ALARMI`, `URUN`, `HASAT`, `ORTAK_ALIM`, `GONDERIM_PLANI`, `MESAJ`, `SISTEM`, `DESTEK`) alıcıya canlı payload (`okunmamisSayisi` dahil) gönderilir. |
 | `UnreadNotificationCountUpdated` | `okunmamisSayisi` (`number`) | Okundu işaretleme veya yeni bildirim sonrası güncel okunmamış bildirim sayacı gönderilir. |
 
 Önerilen frontend event setup:

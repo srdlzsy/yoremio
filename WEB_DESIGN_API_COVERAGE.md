@@ -21,6 +21,7 @@ Desteklenen alanlar:
 - Public satici vitrin ozeti: `GET /api/Profil/satici/{saticiId}` (`aciklama`, `kapakResimUrl`, `paketTuru` dahil)
 - One cikan saticilar: `GET /api/Profil/saticilar/one-cikan`
 - Yoremio Ortak Alim vitrini: `GET /api/OrtakAlim`, `GET /api/OrtakAlim/{id}`
+- Sehrime Gelen Urunler (planli sevkiyatlar): `GET /api/PlanliGonderim?hedefSehir=`
 - Urun karti zengin alanlari: `urun.resimler[0].url`, `birimMiktar`, `teslimatSecenekleri`, `yeniHasatMi`, `goruntulenmeSayisi`, `slug`, `uretimSehir`, `uretimIlce`, `eldenTeslimVarMi`, `kargoVarMi`, `gonderimSehirleri`
 - Satici rozetleri: `saticiDogrulanmis`, `saticiMagazaAdi`, `saticiSehir`, `saticiIlce`
 

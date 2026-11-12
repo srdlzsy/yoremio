@@ -197,11 +197,17 @@ Ortak Alim:
 - `POST /api/OrtakAlim/{id}/katil` / `DELETE /api/OrtakAlim/{id}/katil`
 - `PATCH /api/OrtakAlim/{id}/durum`
 
+Planli Gonderim ("Sehrime Gelen Urunler"):
+
+- `GET /api/PlanliGonderim?hedefSehir=&menseiSehir=`
+- `POST /api/PlanliGonderim`
+- `DELETE /api/PlanliGonderim/{id}`
+
 Chat:
 
 - `GET /api/Chat/conversations`
-- `GET /api/Chat/messages/{otherUserId}`
-- `POST /api/Chat/messages/{receiverId}`
+- `GET /api/Chat/messages/{otherUserId}?urunId=&talepId=`
+- `POST /api/Chat/messages/{receiverId}` (`urunId`, `talepId` destekli)
 - `POST /api/Chat/messages/{otherUserId}/read`
 - SignalR: `/chathub`
 

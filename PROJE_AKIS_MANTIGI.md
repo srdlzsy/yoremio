@@ -191,7 +191,7 @@ Konum ve teslimat mantigi:
 
 - `UretimSehir` / `UretimIlce` (mensei) ile satici konumu ve `GonderimSehirleri` / `EldenTeslimVarMi` / `KargoVarMi` ayri tutulur.
 - `TeslimatSehir` filtresi hem o sehirdeki yerel saticilari hem de kargo ile o sehre gonderim yapan uzak ureticileri getirir; `sort=relevance` yerel + o sehre gonderen urunleri ustte siralar.
-- `GET /api/Urun/kesfet` sonucunda urun bulunamazsa bos ekran yerine `alternatifler` doner: `ayniYoredenUrunler`, `sehreGonderimYapanlar`, `stoguTukenenUrunler` (stok alarmi kurulabilir), `aktifOrtakAlimlar` ve `benimIcinBulOnerisi` (`POST /api/Talep/pazar`).
+- `GET /api/Urun/kesfet` sonucunda urun bulunamazsa bos ekran yerine `alternatifler` doner: `ayniYoredenUrunler`, `sehreGonderimYapanlar`, `stoguTukenenUrunler` (stok alarmi kurulabilir), `aktifOrtakAlimlar`, `planliGonderimler` (`/api/PlanliGonderim`) ve `benimIcinBulOnerisi` (`POST /api/Talep/pazar`).
 - Stogu `0` olan urunlerde `POST /api/Urun/{urunId}/stok-alarmi`, fiyat dususu icin `POST /api/Urun/{urunId}/fiyat-alarmi` ve satici yenilikleri icin `POST /api/Profil/satici/{saticiId}/takip` desteklenir.
 
 One cikan saticilar ve public magaza ozeti:
