@@ -27,7 +27,15 @@ internal static class ServiceBehaviorTests
             ("SaticiProfiliService kapak resmi yukleyip aciklamayi kaydetmeli", SaticiProfiliService_Should_UploadCoverAndSaveDescription),
             ("KategoriService ve UrunService aktif urun sayisi ile lokasyonlari donmeli", KategoriAndUrunService_Should_ReturnProductCountsAndLocations),
             ("YorumServices puanlama yetkisi ve mevcut puani donmeli", YorumServices_Should_ReturnRatingEligibilityAndCurrentScore),
-            ("TalepService aliciAdi, durum filtresi ve sayfalama desteklemeli", TalepService_Should_FilterAndPaginateWithBuyerName)
+            ("TalepService aliciAdi, durum filtresi ve sayfalama desteklemeli", TalepService_Should_FilterAndPaginateWithBuyerName),
+            ("TalepService acik pazar talebinde akilli uretici eslestirmesi yapmali", TalepService_Should_MatchRelevantSellers_OnOpenMarketDemand),
+            ("TalepService tek dokunusla talep tekrari ve anlasma onayi saglamali", TalepService_Should_RepeatDemand_AndConfirmDealCompletion),
+            ("SaticiProfiliService takip edilen satici yeni urun bildirimini tetiklemeli", SaticiTakip_Should_NotifyFollower_WhenSellerAddsNewProduct),
+            ("UrunService toplu stok guncelleme ve fiyat alarmi tetiklemeli", UrunService_Should_BulkUpdateStock_AndTriggerPriceAlert),
+            ("UrunService detay okumasinda goruntulenme ve kart alanlarini donmeli", UrunService_Should_IncrementViews_AndExposeCardMetadata),
+            ("UrunService konum bazli kesifte sonuc yoksa akilli alternatif ve Benim Icin Bul onermeli", UrunService_Kesfet_Should_ReturnAlternativesAndFindForMePrompt_WhenEmpty),
+            ("UrunService stok sifirdan yukselince stok alarmi bildirimini tetiklemeli", UrunService_Should_TriggerStokAlarmi_WhenProductRestocked),
+            ("OrtakAlimService alici onerisi satici onayi ve hedef katilimciya ulasmayi yonetmeli", OrtakAlimService_Should_SupportProposalApprovalAndParticipantTarget)
         };
     }
 
@@ -417,6 +425,12 @@ internal static class ServiceBehaviorTests
         public Task<Urun?> GetByIdAsync(object id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == Convert.ToInt32(id)));
         public Task<Urun?> GetByIdForUpdateAsync(int id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == id));
         public Task<Urun?> GetByIdWithRelationsAsync(int id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == id));
+        public Task IncrementViewCountAsync(int id)
+        {
+            var item = Items.FirstOrDefault(x => x.Id == id);
+            if (item != null) item.GoruntulenmeSayisi += 1;
+            return Task.CompletedTask;
+        }
         public Task<IReadOnlyCollection<Urun>> GetRecommendedAsync(
             IReadOnlyCollection<int> kategoriIdleri,
             IReadOnlyCollection<int> haricUrunIdleri,
@@ -431,7 +445,51 @@ internal static class ServiceBehaviorTests
                     .Select(u => (u.Satici.Sehir!, u.Satici.Ilce))
                     .Distinct()
                     .ToList());
-        public Task<PagedResult<Urun>> QueryAsync(UrunQuery query) => Task.FromResult(new PagedResult<Urun>());
+        public Task<PagedResult<Urun>> QueryAsync(UrunQuery query)
+        {
+            var filtered = Items.Where(u => u.AktifMi).AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(query.Q))
+            {
+                var q = query.Q.Trim();
+                filtered = filtered.Where(u =>
+                    u.Adi.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    (u.Aciklama != null && u.Aciklama.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                    (u.UretimSehir != null && u.UretimSehir.Contains(q, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.TeslimatSehir))
+            {
+                var city = query.TeslimatSehir.Trim();
+                filtered = filtered.Where(u =>
+                    (u.Satici != null && string.Equals(u.Satici.Sehir, city, StringComparison.OrdinalIgnoreCase)) ||
+                    (u.KargoVarMi && (string.IsNullOrWhiteSpace(u.GonderimSehirleri) ||
+                        u.GonderimSehirleri.Contains("Türkiye", StringComparison.OrdinalIgnoreCase) ||
+                        u.GonderimSehirleri.Contains(city, StringComparison.OrdinalIgnoreCase))));
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.UretimSehir))
+            {
+                var origin = query.UretimSehir.Trim();
+                filtered = filtered.Where(u =>
+                    (u.UretimSehir != null && u.UretimSehir.Contains(origin, StringComparison.OrdinalIgnoreCase)) ||
+                    (u.Satici != null && u.Satici.Sehir != null && u.Satici.Sehir.Contains(origin, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            if (query.SadeceStoktaOlanlar == true)
+            {
+                filtered = filtered.Where(u => u.StokMiktari > 0);
+            }
+
+            var list = filtered.ToList();
+            return Task.FromResult(new PagedResult<Urun>
+            {
+                Items = list.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToList(),
+                Page = query.Page,
+                PageSize = query.PageSize,
+                TotalCount = list.Count
+            });
+        }
         public void Remove(Urun entity) => Items.Remove(entity);
         public Task<bool> SaveChangesAsync() => Task.FromResult(true);
         public void Update(Urun entity) { }
@@ -493,11 +551,15 @@ internal static class ServiceBehaviorTests
         public Task<Talep?> GetByIdAsync(object id) => Task.FromResult(Talepler.FirstOrDefault(t => t.Id == Convert.ToInt32(id)));
         public Task<Talep?> GetByIdWithDetailsAsync(int talepId) => Task.FromResult(Talepler.FirstOrDefault(t => t.Id == talepId));
         public Task<IReadOnlyCollection<Talep>> GetSaticiTalepleriAsync(string saticiId, string? durum = null)
-            => Task.FromResult<IReadOnlyCollection<Talep>>(FilterTalepler(Talepler.Where(t => t.Urun?.SaticiId == saticiId), durum));
+            => Task.FromResult<IReadOnlyCollection<Talep>>(FilterTalepler(
+                Talepler.Where(t => t.Urun?.SaticiId == saticiId || t.Eslesmeler.Any(e => e.SaticiId == saticiId) || t.Teklifler.Any(o => o.SaticiId == saticiId)),
+                durum));
 
         public Task<PagedResult<Talep>> GetSaticiTalepleriPagedAsync(string saticiId, string? durum, int page, int pageSize)
         {
-            var filtered = FilterTalepler(Talepler.Where(t => t.Urun?.SaticiId == saticiId), durum);
+            var filtered = FilterTalepler(
+                Talepler.Where(t => t.Urun?.SaticiId == saticiId || t.Eslesmeler.Any(e => e.SaticiId == saticiId) || t.Teklifler.Any(o => o.SaticiId == saticiId)),
+                durum);
             return Task.FromResult(new PagedResult<Talep>
             {
                 Items = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToArray(),
@@ -505,6 +567,31 @@ internal static class ServiceBehaviorTests
                 PageSize = pageSize,
                 TotalCount = filtered.Count
             });
+        }
+
+        public Task<PagedResult<Talep>> GetAcikPazarTalepleriForSellerAsync(string saticiId, string? durum, int page, int pageSize)
+        {
+            var effectiveDurum = string.IsNullOrWhiteSpace(durum) ? TalepDurumlari.Acik : durum;
+            var filtered = FilterTalepler(
+                Talepler.Where(t => t.TalepTuru == TalepTurleri.AcikPazar && t.AliciId != saticiId),
+                effectiveDurum);
+            return Task.FromResult(new PagedResult<Talep>
+            {
+                Items = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToArray(),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = filtered.Count
+            });
+        }
+
+        public Task AddEslesmelerAsync(IEnumerable<TalepEslesme> eslesmeler)
+        {
+            foreach (var eslesme in eslesmeler)
+            {
+                var talep = Talepler.FirstOrDefault(t => t.Id == eslesme.TalepId);
+                talep?.Eslesmeler.Add(eslesme);
+            }
+            return Task.CompletedTask;
         }
 
         private static List<Talep> FilterTalepler(IEnumerable<Talep> query, string? durum)
@@ -548,6 +635,7 @@ internal static class ServiceBehaviorTests
     private sealed class FakeSaticiProfiliRepository : ISaticiProfiliRepository
     {
         private readonly List<SaticiProfili> _items;
+        public List<SaticiProfili> Items => _items;
         public FakeSaticiProfiliRepository(params SaticiProfili[] items) => _items = items.ToList();
 
         public Task AddAsync(SaticiProfili entity) { _items.Add(entity); return Task.CompletedTask; }
@@ -727,5 +815,524 @@ internal static class ServiceBehaviorTests
         public void Remove(Yorum entity) => Items.Remove(entity);
         public Task<bool> SaveChangesAsync() => Task.FromResult(true);
         public void Update(Yorum entity) { }
+    }
+
+    private sealed class FakeStokAlarmiRepository : IStokAlarmiRepository
+    {
+        public List<StokAlarmi> Items { get; } = new();
+        private readonly FakeUrunRepository? _urunRepo;
+
+        public FakeStokAlarmiRepository(FakeUrunRepository? urunRepo = null)
+        {
+            _urunRepo = urunRepo;
+        }
+
+        public Task AddAsync(StokAlarmi entity) { Items.Add(entity); return Task.CompletedTask; }
+        public Task<IEnumerable<StokAlarmi>> FindAsync(Expression<Func<StokAlarmi, bool>> predicate) => Task.FromResult<IEnumerable<StokAlarmi>>(Items.Where(predicate.Compile()).ToList());
+        public Task<IEnumerable<StokAlarmi>> GetAllAsync() => Task.FromResult<IEnumerable<StokAlarmi>>(Items);
+        public Task<StokAlarmi?> GetByIdAsync(object id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == Convert.ToInt32(id)));
+        public Task<StokAlarmi?> GetAsync(string aliciId, int urunId) => Task.FromResult(Items.FirstOrDefault(x => x.AliciId == aliciId && x.UrunId == urunId));
+        public Task<IReadOnlyCollection<StokAlarmi>> GetByAliciWithProductAsync(string aliciId)
+        {
+            foreach (var x in Items.Where(i => i.AliciId == aliciId && i.Urun == null && _urunRepo != null))
+            {
+                x.Urun = _urunRepo!.Items.FirstOrDefault(u => u.Id == x.UrunId);
+            }
+            return Task.FromResult<IReadOnlyCollection<StokAlarmi>>(Items.Where(x => x.AliciId == aliciId && x.AktifMi).ToList());
+        }
+        public Task<IReadOnlyCollection<StokAlarmi>> GetActiveByProductAsync(int urunId)
+            => Task.FromResult<IReadOnlyCollection<StokAlarmi>>(Items.Where(x => x.UrunId == urunId && x.AktifMi).ToList());
+        public void Remove(StokAlarmi entity) => Items.Remove(entity);
+        public Task<bool> SaveChangesAsync() => Task.FromResult(true);
+        public void Update(StokAlarmi entity) { }
+    }
+
+    private sealed class FakeOrtakAlimRepository : IOrtakAlimRepository
+    {
+        public List<OrtakAlim> Items { get; } = new();
+        private int _nextId = 1;
+
+        public Task AddAsync(OrtakAlim entity)
+        {
+            if (entity.Id == 0) entity.Id = _nextId++;
+            Items.Add(entity);
+            return Task.CompletedTask;
+        }
+
+        public Task AddKatilimAsync(OrtakAlimKatilim katilim)
+        {
+            var group = Items.First(x => x.Id == katilim.OrtakAlimId);
+            if (!group.Katilimlar.Contains(katilim))
+            {
+                group.Katilimlar.Add(katilim);
+            }
+            return Task.CompletedTask;
+        }
+
+        public Task<IEnumerable<OrtakAlim>> FindAsync(Expression<Func<OrtakAlim, bool>> predicate) => Task.FromResult<IEnumerable<OrtakAlim>>(Items.Where(predicate.Compile()).ToList());
+        public Task<IEnumerable<OrtakAlim>> GetAllAsync() => Task.FromResult<IEnumerable<OrtakAlim>>(Items);
+        public Task<OrtakAlim?> GetByIdAsync(object id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == Convert.ToInt32(id)));
+        public Task<OrtakAlim?> GetByIdWithDetailsAsync(int id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == id));
+        public Task<OrtakAlimKatilim?> GetKatilimAsync(int ortakAlimId, string aliciId)
+            => Task.FromResult(Items.FirstOrDefault(x => x.Id == ortakAlimId)?.Katilimlar.FirstOrDefault(k => k.AliciId == aliciId));
+
+        public Task<IReadOnlyCollection<OrtakAlim>> GetMatchingOpenGroupBuysAsync(string? q, string? hedefSehir, int take = 5)
+        {
+            var filtered = Items.Where(o => o.Durum == OrtakAlimDurumlari.Acik || o.Durum == OrtakAlimDurumlari.HedefTamamlandi);
+            if (!string.IsNullOrWhiteSpace(hedefSehir))
+            {
+                filtered = filtered.Where(o => o.HedefSehir.Contains(hedefSehir.Trim(), StringComparison.OrdinalIgnoreCase));
+            }
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim();
+                filtered = filtered.Where(o => o.Baslik.Contains(term, StringComparison.OrdinalIgnoreCase) || o.MenseiSehir.Contains(term, StringComparison.OrdinalIgnoreCase));
+            }
+            return Task.FromResult<IReadOnlyCollection<OrtakAlim>>(filtered.Take(take).ToList());
+        }
+
+        public Task<PagedResult<OrtakAlim>> QueryAsync(string? hedefSehir, string? menseiSehir, string? q, string? durum, int page, int pageSize)
+        {
+            var filtered = Items.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(hedefSehir))
+                filtered = filtered.Where(o => o.HedefSehir.Contains(hedefSehir.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(menseiSehir))
+                filtered = filtered.Where(o => o.MenseiSehir.Contains(menseiSehir.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(durum))
+                filtered = filtered.Where(o => string.Equals(o.Durum, durum.Trim(), StringComparison.OrdinalIgnoreCase));
+            var list = filtered.ToList();
+            return Task.FromResult(new PagedResult<OrtakAlim>
+            {
+                Items = list.Skip((page - 1) * pageSize).Take(pageSize).ToList(),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = list.Count
+            });
+        }
+
+        public void Remove(OrtakAlim entity) => Items.Remove(entity);
+        public Task<bool> SaveChangesAsync() => Task.FromResult(true);
+        public void Update(OrtakAlim entity) { }
+    }
+
+    private sealed class FakeSaticiTakipRepository : ISaticiTakipRepository
+    {
+        public List<SaticiTakip> Items { get; } = new();
+        private readonly FakeSaticiProfiliRepository? _saticiRepo;
+
+        public FakeSaticiTakipRepository(FakeSaticiProfiliRepository? saticiRepo = null)
+        {
+            _saticiRepo = saticiRepo;
+        }
+
+        public Task AddAsync(SaticiTakip entity) { Items.Add(entity); return Task.CompletedTask; }
+        public Task<IEnumerable<SaticiTakip>> FindAsync(Expression<Func<SaticiTakip, bool>> predicate) => Task.FromResult<IEnumerable<SaticiTakip>>(Items.Where(predicate.Compile()).ToList());
+        public Task<IEnumerable<SaticiTakip>> GetAllAsync() => Task.FromResult<IEnumerable<SaticiTakip>>(Items);
+        public Task<SaticiTakip?> GetAsync(string aliciId, string saticiId) => Task.FromResult(Items.FirstOrDefault(x => x.AliciId == aliciId && x.SaticiId == saticiId));
+        public Task<IReadOnlyCollection<SaticiTakip>> GetByAliciAsync(string aliciId)
+        {
+            var list = Items.Where(x => x.AliciId == aliciId).ToList();
+            if (_saticiRepo != null)
+            {
+                foreach (var item in list)
+                {
+                    item.Satici ??= _saticiRepo.Items.FirstOrDefault(s => s.KullaniciId == item.SaticiId);
+                }
+            }
+            return Task.FromResult<IReadOnlyCollection<SaticiTakip>>(list);
+        }
+        public Task<SaticiTakip?> GetByIdAsync(object id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == Convert.ToInt32(id)));
+        public Task<int> GetFollowerCountAsync(string saticiId) => Task.FromResult(Items.Count(x => x.SaticiId == saticiId));
+        public Task<IReadOnlyCollection<SaticiTakip>> GetFollowersWithNotificationAsync(string saticiId)
+            => Task.FromResult<IReadOnlyCollection<SaticiTakip>>(Items.Where(x => x.SaticiId == saticiId && x.BildirimAcikMi).ToList());
+        public void Remove(SaticiTakip entity) => Items.Remove(entity);
+        public Task<bool> SaveChangesAsync() => Task.FromResult(true);
+        public void Update(SaticiTakip entity) { }
+    }
+
+    private sealed class FakeFiyatAlarmiRepository : IFiyatAlarmiRepository
+    {
+        public List<FiyatAlarmi> Items { get; } = new();
+        private int _nextId = 1;
+
+        public Task AddAsync(FiyatAlarmi entity) { if (entity.Id == 0) entity.Id = _nextId++; Items.Add(entity); return Task.CompletedTask; }
+        public Task<IEnumerable<FiyatAlarmi>> FindAsync(Expression<Func<FiyatAlarmi, bool>> predicate) => Task.FromResult<IEnumerable<FiyatAlarmi>>(Items.Where(predicate.Compile()).ToList());
+        public Task<IEnumerable<FiyatAlarmi>> GetAllAsync() => Task.FromResult<IEnumerable<FiyatAlarmi>>(Items);
+        public Task<FiyatAlarmi?> GetAsync(string aliciId, int urunId) => Task.FromResult(Items.FirstOrDefault(x => x.AliciId == aliciId && x.UrunId == urunId));
+        public Task<IReadOnlyCollection<FiyatAlarmi>> GetByAliciWithProductAsync(string aliciId)
+            => Task.FromResult<IReadOnlyCollection<FiyatAlarmi>>(Items.Where(x => x.AliciId == aliciId).ToList());
+        public Task<FiyatAlarmi?> GetByIdAsync(object id) => Task.FromResult(Items.FirstOrDefault(x => x.Id == Convert.ToInt32(id)));
+        public Task<IReadOnlyCollection<FiyatAlarmi>> GetMatchingActiveAlertsAsync(int urunId, decimal yeniFiyat)
+            => Task.FromResult<IReadOnlyCollection<FiyatAlarmi>>(Items.Where(x =>
+                x.UrunId == urunId &&
+                x.AktifMi &&
+                yeniFiyat <= x.HedefFiyat &&
+                (x.SonTetiklenenFiyat == null || yeniFiyat < x.SonTetiklenenFiyat)).ToList());
+        public void Remove(FiyatAlarmi entity) => Items.Remove(entity);
+        public Task<bool> SaveChangesAsync() => Task.FromResult(true);
+        public void Update(FiyatAlarmi entity) { }
+    }
+
+    private static async Task TalepService_Should_MatchRelevantSellers_OnOpenMarketDemand()
+    {
+        var urunRepo = new FakeUrunRepository();
+        var saticiRepo = new FakeSaticiProfiliRepository();
+        var butterSeller = new SaticiProfili { KullaniciId = "butter-seller", MagazaAdi = "Erzurum Tereyagi", Sehir = "Erzurum", AktifMi = true, VergiNo = "1234567890", Kullanici = new ApplicationUser { Id = "butter-seller", EmailConfirmed = true } };
+        var oliveSeller = new SaticiProfili { KullaniciId = "olive-seller", MagazaAdi = "Ege Zeytin", Sehir = "Izmir", AktifMi = true, VergiNo = "9876543210", Kullanici = new ApplicationUser { Id = "olive-seller", EmailConfirmed = true } };
+        saticiRepo.Items.AddRange(new[] { butterSeller, oliveSeller });
+
+        urunRepo.Items.Add(new Urun { Id = 1, Adi = "Yayla Tereyagi", Aciklama = "Taze köy tereyagi", KategoriId = 2, SaticiId = "butter-seller", Satici = butterSeller, StokMiktari = 25, Fiyat = 380m, AktifMi = true });
+        urunRepo.Items.Add(new Urun { Id = 2, Adi = "Sizma Zeytinyagi", Aciklama = "Soguk sikim", KategoriId = 5, SaticiId = "olive-seller", Satici = oliveSeller, StokMiktari = 10, Fiyat = 450m, AktifMi = true });
+
+        var talepRepo = new FakeTalepRepository(urunRepo);
+        var bildirimService = new FakeBildirimService();
+        var service = new TalepService(talepRepo, urunRepo, bildirimService, saticiRepo);
+
+        var created = await service.AcikTalepOlusturAsync("buyer-1", new AcikTalepOlusturDto
+        {
+            ArananUrunAdi = "Tereyagi",
+            KategoriId = 2,
+            Miktar = 10,
+            Birim = "kg",
+            TeslimatSehir = "Istanbul",
+            TercihEdilenSehirler = "Erzurum, Trabzon",
+            TalepTipi = TalepTipleri.Kurumsal
+        });
+
+        if (created.EslesenSaticiSayisi != 1 || bildirimService.Created.Count != 1 || bildirimService.Created[0].KullaniciId != "butter-seller")
+        {
+            throw new InvalidOperationException("Acik pazar talebi yalnizca kategori/sehir ile eslesen ureticiye iletilmeliydi.");
+        }
+
+        var teklif = await service.TeklifVerAsync(created.Id, "butter-seller", new TalepTeklifOlusturDto
+        {
+            BirimFiyat = 355m,
+            Mesaj = "2 gunde kargolarim.",
+            TeslimatSuresiGun = 2,
+            KargoDahilMi = true
+        });
+
+        if (teklif.TeslimatSuresiGun != 2 || teklif.GonderimSehir != "Erzurum")
+        {
+            throw new InvalidOperationException("Acik pazar teklifinde teslimat ve sehir alanlari donmeliydi.");
+        }
+    }
+
+    private static async Task TalepService_Should_RepeatDemand_AndConfirmDealCompletion()
+    {
+        var urunRepo = new FakeUrunRepository();
+        var bal = new Urun { Id = 33, Adi = "Cicek Bali", SaticiId = "seller-1", AktifMi = true, BirimMiktar = "850 g", StokMiktari = 15, Fiyat = 420m };
+        urunRepo.Items.Add(bal);
+
+        var talepRepo = new FakeTalepRepository(urunRepo);
+        var bildirimService = new FakeBildirimService();
+        var service = new TalepService(talepRepo, urunRepo, bildirimService);
+
+        var first = await service.TalepOlusturAsync("buyer-1", new TalepOlusturDto { UrunId = 33, Miktar = 2, Not = "Ilk siparis" });
+        var offer = await service.TeklifVerAsync(first.Id, "seller-1", new TalepTeklifOlusturDto { BirimFiyat = 400m, Mesaj = "Kabul" });
+        await service.TeklifKabulEtAsync(offer.Id, "buyer-1");
+
+        var buyerConfirmed = await service.AnlasmaOnayiVerAsync(first.Id, "buyer-1", new AnlasmaOnayiDto { GerceklestiMi = true });
+        if (buyerConfirmed.AliciGerceklestiOnayi != true)
+        {
+            throw new InvalidOperationException("Alici gerceklesme onayi kaydedilmeliydi.");
+        }
+
+        var repeated = await service.TalepTekrarlaAsync(first.Id, "buyer-1", new TalepTekrarlaDto { Miktar = 4 });
+        if (repeated.Id == first.Id || repeated.Miktar != 4 || repeated.UrunId != 33)
+        {
+            throw new InvalidOperationException("Tekrar siparis yeni acik talep olarak olusturulmaliydi.");
+        }
+    }
+
+    private static async Task SaticiTakip_Should_NotifyFollower_WhenSellerAddsNewProduct()
+    {
+        var saticiRepo = new FakeSaticiProfiliRepository();
+        var seller = new SaticiProfili { KullaniciId = "seller-follow", MagazaAdi = "Kars Mandira", Sehir = "Kars", AktifMi = true };
+        saticiRepo.Items.Add(seller);
+
+        var takipRepo = new FakeSaticiTakipRepository(saticiRepo);
+        var urunRepo = new FakeUrunRepository();
+        var saticiService = new SaticiProfiliService(saticiRepo, urunRepo, saticiTakipRepository: takipRepo);
+
+        var added = await saticiService.SaticiTakipEtAsync("buyer-1", "seller-follow", bildirimAcikMi: true);
+        if (!added)
+        {
+            throw new InvalidOperationException("Satici takip kaydi olusturulmaliydi.");
+        }
+
+        var bildirimService = new FakeBildirimService();
+        var kategoriRepo = new FakeKategoriRepository();
+        kategoriRepo.Items.Add(new Kategori { Id = 1, Adi = "Peynir" });
+
+        var urunService = new UrunService(
+            urunRepo,
+            new FakeUrunFavoriRepository(),
+            saticiRepo,
+            kategoriRepo,
+            new InMemoryDosyaKaydetService(),
+            saticiTakipRepository: takipRepo,
+            bildirimService: bildirimService);
+
+        await urunService.UrunEkleAsync("seller-follow", new UrunEkleDto
+        {
+            Adi = "Eski Kars Kasari",
+            Fiyat = 550m,
+            StokMiktari = 10,
+            KategoriId = 1,
+            YeniHasatMi = true,
+            BirimMiktar = "1 kg"
+        });
+
+        if (bildirimService.Created.Count != 1 || bildirimService.Created[0].Tur != BildirimTurleri.Hasat || bildirimService.Created[0].KullaniciId != "buyer-1")
+        {
+            throw new InvalidOperationException("Yeni hasat urunu eklendiginde takipciye bildirim gitmeliydi.");
+        }
+    }
+
+    private static async Task UrunService_Should_BulkUpdateStock_AndTriggerPriceAlert()
+    {
+        var saticiRepo = new FakeSaticiProfiliRepository();
+        var seller = new SaticiProfili { KullaniciId = "seller-1", MagazaAdi = "Toros Bal", Sehir = "Antalya", AktifMi = true };
+        saticiRepo.Items.Add(seller);
+
+        var urunRepo = new FakeUrunRepository();
+        urunRepo.Items.Add(new Urun { Id = 71, Adi = "Cam Bali", Fiyat = 500m, StokMiktari = 20, SaticiId = "seller-1", Satici = seller, AktifMi = true });
+
+        var alarmRepo = new FakeFiyatAlarmiRepository();
+        var bildirimService = new FakeBildirimService();
+        var urunService = new UrunService(
+            urunRepo,
+            new FakeUrunFavoriRepository(),
+            saticiRepo,
+            new FakeKategoriRepository(),
+            new InMemoryDosyaKaydetService(),
+            fiyatAlarmiRepository: alarmRepo,
+            bildirimService: bildirimService);
+
+        await urunService.FiyatAlarmiKaydetAsync("buyer-1", 71, new FiyatAlarmiOlusturDto { HedefFiyat = 420m });
+
+        var updated = await urunService.TopluStokGuncelleAsync("seller-1", new TopluStokGuncelleDto
+        {
+            Kalemler = new List<TopluStokKalemiDto>
+            {
+                new() { UrunId = 71, StokMiktari = 8, Fiyat = 410m, YeniHasatMi = true }
+            }
+        });
+
+        var item = updated.Single();
+        if (item.StokMiktari != 8 || item.Fiyat != 410m || !item.YeniHasatMi)
+        {
+            throw new InvalidOperationException("Toplu stok/fiyat/hasat guncellemesi uygulanmaliydi.");
+        }
+
+        if (bildirimService.Created.Count != 1 || bildirimService.Created[0].Tur != BildirimTurleri.FiyatAlarmi)
+        {
+            throw new InvalidOperationException("Fiyat hedef seviyenin altina dustugunde fiyat alarmi bildirimi gonderilmeliydi.");
+        }
+    }
+
+    private static async Task UrunService_Should_IncrementViews_AndExposeCardMetadata()
+    {
+        var urunRepo = new FakeUrunRepository();
+        var seller = new SaticiProfili { KullaniciId = "seller-1", MagazaAdi = "Posof Organik", Sehir = "Ardahan", Ilce = "Posof", AktifMi = true };
+        urunRepo.Items.Add(new Urun
+        {
+            Id = 88,
+            Adi = "Yayla Cicek Bali",
+            Fiyat = 490m,
+            StokMiktari = 5,
+            BirimMiktar = "850 g",
+            TeslimatSecenekleri = "Kargo, Elden Teslim",
+            YeniHasatMi = true,
+            SaticiId = "seller-1",
+            Satici = seller,
+            AktifMi = true
+        });
+
+        var service = new UrunService(
+            urunRepo,
+            new FakeUrunFavoriRepository(),
+            new FakeSaticiProfiliRepository(),
+            new FakeKategoriRepository(),
+            new InMemoryDosyaKaydetService());
+
+        var dto = await service.GetUrunByIdAsync(88, incrementView: true);
+        if (dto == null || dto.GoruntulenmeSayisi != 1 || dto.BirimMiktar != "850 g" || !dto.YeniHasatMi || string.IsNullOrWhiteSpace(dto.Slug))
+        {
+            throw new InvalidOperationException("Urun detayi goruntulenme sayisini ve zengin urun karti alanlarini donmeliydi.");
+        }
+    }
+
+    private static async Task UrunService_Kesfet_Should_ReturnAlternativesAndFindForMePrompt_WhenEmpty()
+    {
+        var urunRepo = new FakeUrunRepository();
+        var ortakAlimRepo = new FakeOrtakAlimRepository();
+
+        var ardahanSeller = new SaticiProfili { KullaniciId = "s-ard", MagazaAdi = "Posof Mandira", Sehir = "Ardahan", Ilce = "Posof", AktifMi = true, AdminDogrulandiMi = true };
+        urunRepo.Items.Add(new Urun
+        {
+            Id = 201,
+            Adi = "Posof Gogermis Peyniri",
+            Fiyat = 380m,
+            StokMiktari = 0, // Out of stock, ships only to Ankara
+            UretimSehir = "Ardahan",
+            UretimIlce = "Posof",
+            GonderimSehirleri = "Ardahan, Ankara",
+            KargoVarMi = true,
+            SaticiId = "s-ard",
+            Satici = ardahanSeller,
+            AktifMi = true
+        });
+        urunRepo.Items.Add(new Urun
+        {
+            Id = 202,
+            Adi = "Ardahan Cicek Bali",
+            Fiyat = 450m,
+            StokMiktari = 12,
+            UretimSehir = "Ardahan",
+            UretimIlce = "Merkez",
+            GonderimSehirleri = "Bursa, Istanbul",
+            KargoVarMi = true,
+            SaticiId = "s-ard",
+            Satici = ardahanSeller,
+            AktifMi = true
+        });
+
+        ortakAlimRepo.Items.Add(new OrtakAlim
+        {
+            Id = 5,
+            SaticiId = "s-ard",
+            Satici = ardahanSeller,
+            Baslik = "Posof Peyniri Bursa Ortak Alimi",
+            MenseiSehir = "Ardahan",
+            HedefSehir = "Bursa",
+            BirimFiyat = 340m,
+            MinimumKatilimci = 5,
+            Durum = OrtakAlimDurumlari.Acik,
+            SonKatilimTarihi = DateTime.UtcNow.AddDays(5)
+        });
+
+        var service = new UrunService(
+            urunRepo,
+            new FakeUrunFavoriRepository(),
+            new FakeSaticiProfiliRepository(),
+            new FakeKategoriRepository(),
+            new InMemoryDosyaKaydetService(),
+            ortakAlimRepository: ortakAlimRepo);
+
+        // Search "Posof peyniri" in Bursa -> 0 direct active shipping matches for Bursa -> returns smart alternatives
+        var result = await service.KesfetAsync(new UrunQuery
+        {
+            Q = "Posof",
+            TeslimatSehir = "Bursa",
+            Page = 1,
+            PageSize = 12
+        });
+
+        if (result.Sonuclar.TotalCount != 0 || result.Alternatifler == null)
+        {
+            throw new InvalidOperationException("Direkt sonuc olmadiginda akilli alternatifler uretilmeliydi.");
+        }
+
+        if (result.Alternatifler.SehreGonderimYapanlar.Count == 0 ||
+            result.Alternatifler.StoguTukenenUrunler.Count == 0 ||
+            result.Alternatifler.AktifOrtakAlimlar.Count == 0 ||
+            !result.Alternatifler.BenimIcinBulOnerisi.UrunBulunamadi)
+        {
+            throw new InvalidOperationException("Kesfet alternatiflerinde sehrime gonderenler, stogu tukenen, aktif ortak alim ve Benim Icin Bul yer almaliydi.");
+        }
+    }
+
+    private static async Task UrunService_Should_TriggerStokAlarmi_WhenProductRestocked()
+    {
+        var urunRepo = new FakeUrunRepository();
+        var stokAlarmRepo = new FakeStokAlarmiRepository(urunRepo);
+        var saticiRepo = new FakeSaticiProfiliRepository();
+        var bildirim = new FakeBildirimService();
+
+        var seller = new SaticiProfili { KullaniciId = "seller-1", MagazaAdi = "Kars Mandira", Sehir = "Kars", AktifMi = true };
+        saticiRepo.Items.Add(seller);
+        urunRepo.Items.Add(new Urun
+        {
+            Id = 91,
+            Adi = "Kars Eski Kasar",
+            Fiyat = 520m,
+            StokMiktari = 0,
+            SaticiId = "seller-1",
+            Satici = seller,
+            AktifMi = true
+        });
+
+        var service = new UrunService(
+            urunRepo,
+            new FakeUrunFavoriRepository(),
+            saticiRepo,
+            new FakeKategoriRepository(),
+            new InMemoryDosyaKaydetService(),
+            bildirimService: bildirim,
+            stokAlarmiRepository: stokAlarmRepo);
+
+        await service.StokAlarmiKaydetAsync("buyer-1", 91);
+
+        await service.TopluStokGuncelleAsync("seller-1", new TopluStokGuncelleDto
+        {
+            Kalemler = new List<TopluStokKalemiDto>
+            {
+                new() { UrunId = 91, StokMiktari = 15 }
+            }
+        });
+
+        if (bildirim.Created.Count != 1 || bildirim.Created[0].Tur != BildirimTurleri.StokAlarmi)
+        {
+            throw new InvalidOperationException("Stok 0'dan pozitif degerine gecince StokAlarmi bildirimi gonderilmeliydi.");
+        }
+    }
+
+    private static async Task OrtakAlimService_Should_SupportProposalApprovalAndParticipantTarget()
+    {
+        var repo = new FakeOrtakAlimRepository();
+        var saticiRepo = new FakeSaticiProfiliRepository();
+        var bildirim = new FakeBildirimService();
+
+        var seller = new SaticiProfili { KullaniciId = "seller-1", MagazaAdi = "Posof Ciftligi", Sehir = "Ardahan", AktifMi = true, AdminDogrulandiMi = true };
+        saticiRepo.Items.Add(seller);
+
+        var service = new OrtakAlimService(repo, saticiRepo, new FakeUrunRepository(), bildirim);
+
+        // Buyer proposes a group buy -> starts as ONAY_BEKLIYOR and notifies seller
+        var proposal = await service.OlusturAsync("buyer-1", new[] { ApplicationRoles.Alici }, new OrtakAlimOlusturDto
+        {
+            SaticiId = "seller-1",
+            Baslik = "Posof Peyniri Bursa Ortak Siparisi",
+            MenseiSehir = "Ardahan",
+            HedefSehir = "Bursa",
+            BirimFiyat = 350m,
+            MinimumKatilimci = 2,
+            SogukZincirGerekliMi = true,
+            TeslimatKosullari = "Soguk zincirli kargo ile Bursa Nilufer teslim",
+            IptalKosullari = "Minimum sayiya ulasmazsa otomatik iptal"
+        });
+
+        if (proposal.Durum != OrtakAlimDurumlari.OnayBekliyor)
+        {
+            throw new InvalidOperationException("Alici tarafindan acilan ortak alim ONAY_BEKLIYOR baslamaliydi.");
+        }
+
+        // Seller approves -> becomes ACIK
+        var approved = await service.OnaylaAsync(proposal.Id, "seller-1");
+        if (approved.Durum != OrtakAlimDurumlari.Acik)
+        {
+            throw new InvalidOperationException("Satici onayi sonrasinda ortak alim ACIK olmaliydi.");
+        }
+
+        // Two buyers join -> reaches MinimumKatilimci (2) -> HEDEF_TAMAMLANDI
+        await service.KatilAsync(proposal.Id, "buyer-1", new OrtakAlimKatilDto { KatilimMiktari = 2 });
+        var full = await service.KatilAsync(proposal.Id, "buyer-2", new OrtakAlimKatilDto { KatilimMiktari = 3 });
+
+        if (full.Durum != OrtakAlimDurumlari.HedefTamamlandi || full.MevcutKatilimci != 2 || full.ToplamTalepMiktari != 5)
+        {
+            throw new InvalidOperationException("Minimum katilimciya ulasilinca ortak alim HEDEF_TAMAMLANDI olmaliydi.");
+        }
     }
 }

@@ -41,7 +41,11 @@ var tests = new (string Name, Action Test)[]
     ("Profil public vitrin endpointi AllowAnonymous olmali", ProfilController_PublicStorefront_Should_BeAllowAnonymous),
     ("Admin endpointleri Admin rolu istemeli", AdminController_Endpoints_Should_RequireAdminRole),
     ("Satici profil guncelleme kapak resmi ve aciklama dogrulamali", SaticiProfilGuncelleDto_Should_ValidateCoverImageAndDescription),
-    ("Alici kayit DTO opsiyonel profil alanlarini kabul etmeli", RegisterAliciDto_Should_SupportOptionalProfileFields)
+    ("Alici kayit DTO opsiyonel profil alanlarini kabul etmeli", RegisterAliciDto_Should_SupportOptionalProfileFields),
+    ("Buyume ve elde tutma endpointleri dogru rolleri istemeli", GrowthAndRetentionEndpoints_Should_RequireExpectedRoles),
+    ("Acik pazar talep ve fiyat alarm DTO dogrulamasi calismali", AcikTalepAndFiyatAlarmiDtos_Should_Validate),
+    ("Konum kesfi, stok alarmi ve ortak alim endpointleri dogru rolleri istemeli", LocationDiscoveryAndOrtakAlimEndpoints_Should_RequireExpectedRoles),
+    ("Ortak alim olusturma DTO dogrulamasi calismali", OrtakAlimOlusturDto_Should_Validate)
 };
 
 var failed = new List<string>();
@@ -391,6 +395,95 @@ static void RegisterAliciDto_Should_SupportOptionalProfileFields()
     };
 
     AssertValid(dto);
+}
+
+static void GrowthAndRetentionEndpoints_Should_RequireExpectedRoles()
+{
+    AssertMethodRole(typeof(TalepController), nameof(TalepController.AcikTalepOlustur), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(TalepController), nameof(TalepController.TalepTekrarla), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(TalepController), nameof(TalepController.GetAcikPazarTalepleri), ApplicationRoles.Satici);
+    AssertMethodRole(typeof(UrunController), nameof(UrunController.TopluStokGuncelle), ApplicationRoles.Satici);
+    AssertMethodRole(typeof(UrunController), nameof(UrunController.FiyatAlarmiKaydet), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(UrunController), nameof(UrunController.FiyatAlarmiSil), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(UrunController), nameof(UrunController.GetFiyatAlarmlarim), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(ProfilController), nameof(ProfilController.SaticiTakipEt), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(ProfilController), nameof(ProfilController.SaticiTakibiBirak), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(ProfilController), nameof(ProfilController.GetTakipEdilenSaticilar), ApplicationRoles.Alici);
+}
+
+static void AcikTalepAndFiyatAlarmiDtos_Should_Validate()
+{
+    var validDemand = new AcikTalepOlusturDto
+    {
+        ArananUrunAdi = "Dogal Yayla Tereyagi",
+        Miktar = 10,
+        Birim = "kg",
+        TeslimatSehir = "Istanbul",
+        TercihEdilenSehirler = "Erzurum, Trabzon"
+    };
+    AssertValid(validDemand);
+
+    var invalidAlert = new FiyatAlarmiOlusturDto { HedefFiyat = 0 };
+    var errors = Validate(invalidAlert);
+    if (errors.Count == 0)
+    {
+        throw new InvalidOperationException("Sifir hedef fiyat reddedilmeliydi.");
+    }
+}
+
+static void LocationDiscoveryAndOrtakAlimEndpoints_Should_RequireExpectedRoles()
+{
+    var kesfetMethod = typeof(UrunController).GetMethod(nameof(UrunController.Kesfet))!;
+    if (kesfetMethod.GetCustomAttribute<AllowAnonymousAttribute>() == null)
+    {
+        throw new InvalidOperationException("UrunController.Kesfet AllowAnonymous olmali.");
+    }
+
+    AssertMethodRole(typeof(UrunController), nameof(UrunController.StokAlarmiKaydet), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(UrunController), nameof(UrunController.StokAlarmiSil), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(UrunController), nameof(UrunController.GetStokAlarmlarim), ApplicationRoles.Alici);
+
+    var adminAuth = typeof(AdminController).GetCustomAttribute<AuthorizeAttribute>();
+    var talepBoslukMethod = typeof(AdminController).GetMethod(nameof(AdminController.GetTalepBosluklari))!;
+    if (adminAuth?.Roles != ApplicationRoles.Admin || talepBoslukMethod.GetCustomAttribute<AllowAnonymousAttribute>() != null)
+    {
+        throw new InvalidOperationException("AdminController.GetTalepBosluklari yalnizca Admin rolune acik olmali.");
+    }
+
+    AssertMethodRole(typeof(OrtakAlimController), nameof(OrtakAlimController.Onayla), ApplicationRoles.Satici);
+    AssertMethodRole(typeof(OrtakAlimController), nameof(OrtakAlimController.Katil), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(OrtakAlimController), nameof(OrtakAlimController.KatilimiIptalEt), ApplicationRoles.Alici);
+    AssertMethodRole(typeof(OrtakAlimController), nameof(OrtakAlimController.DurumGuncelle), ApplicationRoles.Satici);
+}
+
+static void OrtakAlimOlusturDto_Should_Validate()
+{
+    var valid = new OrtakAlimOlusturDto
+    {
+        Baslik = "Ardahan Posof Peyniri Bursa Ortak Alimi",
+        MenseiSehir = "Ardahan",
+        HedefSehir = "Bursa",
+        BirimFiyat = 340m,
+        Birim = "kg",
+        MinimumKatilimci = 5,
+        SogukZincirGerekliMi = true,
+        TeslimatKosullari = "Haftasonu sogutuculu aracla Nilufer dagitim noktasi",
+        IptalKosullari = "Hedef dolmazsa otomatik iade"
+    };
+    AssertValid(valid);
+
+    var invalid = new OrtakAlimOlusturDto
+    {
+        Baslik = "Ok",
+        MenseiSehir = "",
+        HedefSehir = "Bursa",
+        BirimFiyat = 0m,
+        MinimumKatilimci = 1
+    };
+    if (Validate(invalid).Count < 3)
+    {
+        throw new InvalidOperationException("Gecersiz OrtakAlimOlusturDto alanlari dogrulamadan gecmemeliydi.");
+    }
 }
 
 static List<string> Validate(object instance)

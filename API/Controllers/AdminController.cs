@@ -67,5 +67,12 @@ namespace API.Controllers
             var result = await _adminService.SetYorumDurumAsync(yorumId, dto);
             return Ok(ApiResponse<AdminYorumDto>.Ok(result, "Yorum durumu güncellendi.", HttpContext.TraceIdentifier));
         }
+
+        [HttpGet("talep-bosluklari")]
+        public async Task<IActionResult> GetTalepBosluklari([FromQuery] int top = 20)
+        {
+            var result = await _adminService.GetTalepBosluklariAsync(top);
+            return Ok(ApiResponse<IReadOnlyCollection<TalepBosluguDto>>.Ok(result, "Bölgesel talep boşlukları getirildi.", HttpContext.TraceIdentifier));
+        }
     }
 }

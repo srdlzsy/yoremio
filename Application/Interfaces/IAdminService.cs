@@ -12,5 +12,6 @@ namespace Application.Interfaces
         Task<UrunDto> SetUrunDurumAsync(int urunId, AdminDurumGuncelleDto dto);
         Task<PagedResult<AdminYorumDto>> GetYorumlarAsync(AdminYorumQuery query);
         Task<AdminYorumDto> SetYorumDurumAsync(int yorumId, AdminDurumGuncelleDto dto);
+        Task<IReadOnlyCollection<TalepBosluguDto>> GetTalepBosluklariAsync(int top = 20);
     }
 }

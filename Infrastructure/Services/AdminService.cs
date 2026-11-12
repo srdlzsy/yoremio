@@ -355,6 +355,50 @@ namespace Infrastructure.Services
             return MapYorumDto(yorum);
         }
 
+        public async Task<IReadOnlyCollection<TalepBosluguDto>> GetTalepBosluklariAsync(int top = 20)
+        {
+            var effectiveTop = top <= 0 ? 20 : Math.Min(top, 100);
+
+            var openMarketRows = await _context.Talepler
+                .AsNoTracking()
+                .Where(t => t.TalepTuru == TalepTurleri.AcikPazar && t.ArananUrunAdi != null)
+                .Select(t => new
+                {
+                    TeslimatSehir = t.TeslimatSehir ?? "Belirtilmemis",
+                    ArananUrunAdi = t.ArananUrunAdi!,
+                    KategoriAdi = t.Kategori != null ? t.Kategori.Adi : null,
+                    t.Durum,
+                    EslesenSayisi = t.Eslesmeler.Count
+                })
+                .ToListAsync();
+
+            return openMarketRows
+                .GroupBy(x => new
+                {
+                    Sehir = x.TeslimatSehir.Trim().ToLowerInvariant(),
+                    Urun = x.ArananUrunAdi.Trim().ToLowerInvariant()
+                })
+                .Select(g =>
+                {
+                    var avgMatches = Math.Round(g.Average(x => x.EslesenSayisi), 1);
+                    return new TalepBosluguDto
+                    {
+                        TeslimatSehir = g.First().TeslimatSehir,
+                        ArananUrunAdi = g.First().ArananUrunAdi,
+                        KategoriAdi = g.Select(x => x.KategoriAdi).FirstOrDefault(k => !string.IsNullOrWhiteSpace(k)),
+                        TalepSayisi = g.Count(),
+                        AcikTalepSayisi = g.Count(x => x.Durum == TalepDurumlari.Acik),
+                        AnlasilanTalepSayisi = g.Count(x => x.Durum == TalepDurumlari.Anlasildi),
+                        OrtalamaEslesenSaticiSayisi = avgMatches,
+                        YeterliSaticiYokMu = avgMatches < 2
+                    };
+                })
+                .OrderByDescending(x => x.YeterliSaticiYokMu)
+                .ThenByDescending(x => x.TalepSayisi)
+                .Take(effectiveTop)
+                .ToArray();
+        }
+
         private async Task<IReadOnlyCollection<string>> GetUserRolesAsync(string userId)
         {
             return await _context.UserRoles
@@ -398,6 +442,16 @@ namespace Infrastructure.Services
                 Aciklama = urun.Aciklama,
                 Fiyat = urun.Fiyat,
                 StokMiktari = urun.StokMiktari,
+                BirimMiktar = urun.BirimMiktar,
+                TeslimatSecenekleri = urun.TeslimatSecenekleri,
+                YeniHasatMi = urun.YeniHasatMi,
+                UretimSehir = urun.UretimSehir,
+                UretimIlce = urun.UretimIlce,
+                EldenTeslimVarMi = urun.EldenTeslimVarMi,
+                KargoVarMi = urun.KargoVarMi,
+                GonderimSehirleri = urun.GonderimSehirleri,
+                GoruntulenmeSayisi = urun.GoruntulenmeSayisi,
+                OlusturmaTarihi = urun.OlusturmaTarihi,
                 AktifMi = urun.AktifMi,
                 KategoriId = urun.KategoriId,
                 KategoriAdi = urun.Kategori?.Adi,

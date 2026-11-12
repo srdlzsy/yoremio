@@ -1,4 +1,4 @@
-﻿using Domain.Entities;
+using Domain.Entities;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,6 +22,12 @@ namespace Infrastructure.Persistence
         public DbSet<UrunFavori> UrunFavoriler { get; set; } = null!;
         public DbSet<Talep> Talepler { get; set; } = null!;
         public DbSet<TalepTeklif> TalepTeklifler { get; set; } = null!;
+        public DbSet<TalepEslesme> TalepEslesmeleri { get; set; } = null!;
+        public DbSet<SaticiTakip> SaticiTakipleri { get; set; } = null!;
+        public DbSet<FiyatAlarmi> FiyatAlarmlari { get; set; } = null!;
+        public DbSet<StokAlarmi> StokAlarmlari { get; set; } = null!;
+        public DbSet<OrtakAlim> OrtakAlimlar { get; set; } = null!;
+        public DbSet<OrtakAlimKatilim> OrtakAlimKatilimlari { get; set; } = null!;
         public DbSet<Yorum> Yorumlar { get; set; } = null!;
         public DbSet<Puan> Puanlar { get; set; } = null!;
         public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
@@ -114,7 +120,147 @@ namespace Infrastructure.Persistence
                 .HasOne(t => t.Urun)
                 .WithMany()
                 .HasForeignKey(t => t.UrunId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<Talep>()
+                .HasOne(t => t.Kategori)
+                .WithMany()
+                .HasForeignKey(t => t.KategoriId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<TalepEslesme>()
+                .HasOne(e => e.Talep)
+                .WithMany(t => t.Eslesmeler)
+                .HasForeignKey(e => e.TalepId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<TalepEslesme>()
+                .HasOne(e => e.Satici)
+                .WithMany()
+                .HasForeignKey(e => e.SaticiId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<TalepEslesme>()
+                .Property(e => e.Sebep)
+                .HasMaxLength(250);
+
+            builder.Entity<TalepEslesme>()
+                .HasIndex(e => new { e.TalepId, e.SaticiId })
+                .IsUnique();
+
+            builder.Entity<SaticiTakip>()
+                .HasOne(t => t.Alici)
+                .WithMany()
+                .HasForeignKey(t => t.AliciId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<SaticiTakip>()
+                .HasOne(t => t.Satici)
+                .WithMany()
+                .HasForeignKey(t => t.SaticiId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<SaticiTakip>()
+                .HasIndex(t => new { t.AliciId, t.SaticiId })
+                .IsUnique();
+
+            builder.Entity<FiyatAlarmi>()
+                .HasOne(a => a.Alici)
+                .WithMany()
+                .HasForeignKey(a => a.AliciId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<FiyatAlarmi>()
+                .HasOne(a => a.Urun)
+                .WithMany()
+                .HasForeignKey(a => a.UrunId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<FiyatAlarmi>()
+                .HasIndex(a => new { a.AliciId, a.UrunId })
+                .IsUnique();
+
+            builder.Entity<StokAlarmi>()
+                .HasOne(a => a.Alici)
+                .WithMany()
+                .HasForeignKey(a => a.AliciId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<StokAlarmi>()
+                .HasOne(a => a.Urun)
+                .WithMany()
+                .HasForeignKey(a => a.UrunId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<StokAlarmi>()
+                .HasIndex(a => new { a.AliciId, a.UrunId })
+                .IsUnique();
+
+            builder.Entity<OrtakAlim>()
+                .HasOne(o => o.Satici)
+                .WithMany()
+                .HasForeignKey(o => o.SaticiId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<OrtakAlim>()
+                .HasOne(o => o.Urun)
+                .WithMany()
+                .HasForeignKey(o => o.UrunId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<OrtakAlim>()
+                .HasOne(o => o.Kategori)
+                .WithMany()
+                .HasForeignKey(o => o.KategoriId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<OrtakAlim>()
+                .Property(o => o.Baslik)
+                .HasMaxLength(150);
+
+            builder.Entity<OrtakAlim>()
+                .Property(o => o.MenseiSehir)
+                .HasMaxLength(60);
+
+            builder.Entity<OrtakAlim>()
+                .Property(o => o.HedefSehir)
+                .HasMaxLength(60);
+
+            builder.Entity<OrtakAlim>()
+                .Property(o => o.Birim)
+                .HasMaxLength(30);
+
+            builder.Entity<OrtakAlim>()
+                .Property(o => o.Durum)
+                .HasMaxLength(30);
+
+            builder.Entity<OrtakAlim>()
+                .Property(o => o.TeslimatKosullari)
+                .HasMaxLength(500);
+
+            builder.Entity<OrtakAlim>()
+                .Property(o => o.IptalKosullari)
+                .HasMaxLength(500);
+
+            builder.Entity<OrtakAlimKatilim>()
+                .HasOne(k => k.OrtakAlim)
+                .WithMany(o => o.Katilimlar)
+                .HasForeignKey(k => k.OrtakAlimId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<OrtakAlimKatilim>()
+                .HasOne(k => k.Alici)
+                .WithMany()
+                .HasForeignKey(k => k.AliciId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<OrtakAlimKatilim>()
+                .HasIndex(k => new { k.OrtakAlimId, k.AliciId })
+                .IsUnique();
 
             builder.Entity<TalepTeklif>()
                 .HasOne(t => t.Talep)
@@ -213,13 +359,64 @@ namespace Infrastructure.Persistence
                 .Property(t => t.Durum)
                 .HasMaxLength(20);
 
+            builder.Entity<Talep>()
+                .Property(t => t.TalepTuru)
+                .HasMaxLength(20);
+
+            builder.Entity<Talep>()
+                .Property(t => t.TalepTipi)
+                .HasMaxLength(20);
+
+            builder.Entity<Talep>()
+                .Property(t => t.ArananUrunAdi)
+                .HasMaxLength(150);
+
+            builder.Entity<Talep>()
+                .Property(t => t.Birim)
+                .HasMaxLength(30);
+
+            builder.Entity<Talep>()
+                .Property(t => t.TeslimatSehir)
+                .HasMaxLength(60);
+
+            builder.Entity<Talep>()
+                .Property(t => t.TercihEdilenSehirler)
+                .HasMaxLength(200);
+
+            builder.Entity<Talep>()
+                .HasIndex(t => new { t.TalepTuru, t.Durum, t.OlusturmaTarihi });
+
             builder.Entity<TalepTeklif>()
                 .Property(t => t.Durum)
                 .HasMaxLength(20);
 
             builder.Entity<TalepTeklif>()
+                .Property(t => t.GonderimSehir)
+                .HasMaxLength(60);
+
+            builder.Entity<TalepTeklif>()
                 .HasIndex(t => new { t.TalepId, t.SaticiId })
                 .IsUnique();
+
+            builder.Entity<Urun>()
+                .Property(u => u.BirimMiktar)
+                .HasMaxLength(50);
+
+            builder.Entity<Urun>()
+                .Property(u => u.TeslimatSecenekleri)
+                .HasMaxLength(200);
+
+            builder.Entity<Urun>()
+                .Property(u => u.UretimSehir)
+                .HasMaxLength(100);
+
+            builder.Entity<Urun>()
+                .Property(u => u.UretimIlce)
+                .HasMaxLength(100);
+
+            builder.Entity<Urun>()
+                .Property(u => u.GonderimSehirleri)
+                .HasMaxLength(500);
 
             builder.Entity<Urun>()
                   .HasIndex(u => u.SaticiId);

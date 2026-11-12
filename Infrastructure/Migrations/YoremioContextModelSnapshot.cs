@@ -206,6 +206,46 @@ namespace Infrastructure.Migrations
                     b.ToTable("ChatMessages");
                 });
 
+            modelBuilder.Entity("Domain.Entities.FiyatAlarmi", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AktifMi")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AliciId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("HedefFiyat")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("OlusturmaTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("SonTetiklemeTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("SonTetiklenenFiyat")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("UrunId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UrunId");
+
+                    b.HasIndex("AliciId", "UrunId")
+                        .IsUnique();
+
+                    b.ToTable("FiyatAlarmlari");
+                });
+
             modelBuilder.Entity("Domain.Entities.Kategori", b =>
                 {
                     b.Property<int>("Id")
@@ -227,6 +267,129 @@ namespace Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Kategoriler");
+                });
+
+            modelBuilder.Entity("Domain.Entities.OrtakAlim", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Aciklama")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Baslik")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Birim")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<decimal>("BirimFiyat")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Durum")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("GuncellemeTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("HedefSehir")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("IptalKosullari")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("KategoriId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MenseiSehir")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<int>("MinimumKatilimci")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OlusturanKullaniciId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("OlusturmaTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SaticiId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("SogukZincirGerekliMi")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("SonKatilimTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TeslimatKosullari")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("UrunId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("KategoriId");
+
+                    b.HasIndex("SaticiId");
+
+                    b.HasIndex("UrunId");
+
+                    b.ToTable("OrtakAlimlar");
+                });
+
+            modelBuilder.Entity("Domain.Entities.OrtakAlimKatilim", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AktifMi")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AliciId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("KatilimMiktari")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Not")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("OlusturmaTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("OrtakAlimId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AliciId");
+
+                    b.HasIndex("OrtakAlimId", "AliciId")
+                        .IsUnique();
+
+                    b.ToTable("OrtakAlimKatilimlari");
                 });
 
             modelBuilder.Entity("Domain.Entities.Puan", b =>
@@ -298,6 +461,11 @@ namespace Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("PaketTuru")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("Sehir")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -315,7 +483,7 @@ namespace Infrastructure.Migrations
                     b.ToTable("SaticiProfilleri");
                 });
 
-            modelBuilder.Entity("Domain.Entities.Talep", b =>
+            modelBuilder.Entity("Domain.Entities.SaticiTakip", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -327,6 +495,83 @@ namespace Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("BildirimAcikMi")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("OlusturmaTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SaticiId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SaticiId");
+
+                    b.HasIndex("AliciId", "SaticiId")
+                        .IsUnique();
+
+                    b.ToTable("SaticiTakipleri");
+                });
+
+            modelBuilder.Entity("Domain.Entities.StokAlarmi", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AktifMi")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AliciId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("OlusturmaTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("SonTetiklemeTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UrunId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UrunId");
+
+                    b.HasIndex("AliciId", "UrunId")
+                        .IsUnique();
+
+                    b.ToTable("StokAlarmlari");
+                });
+
+            modelBuilder.Entity("Domain.Entities.Talep", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool?>("AliciGerceklestiOnayi")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AliciId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ArananUrunAdi")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Birim")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<string>("Durum")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -334,6 +579,12 @@ namespace Infrastructure.Migrations
 
                     b.Property<DateTime?>("GuncellemeTarihi")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("HedefBirimFiyat")
+                        .HasColumnType("numeric");
+
+                    b.Property<int?>("KategoriId")
+                        .HasColumnType("integer");
 
                     b.Property<int>("Miktar")
                         .HasColumnType("integer");
@@ -344,16 +595,79 @@ namespace Infrastructure.Migrations
                     b.Property<DateTime>("OlusturmaTarihi")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("UrunId")
+                    b.Property<bool?>("SaticiGerceklestiOnayi")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("SonTeklifTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TalepTipi")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TalepTuru")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TercihEdilenSehirler")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TeslimatSehir")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<int?>("UrunId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
                     b.HasIndex("AliciId");
 
+                    b.HasIndex("KategoriId");
+
                     b.HasIndex("UrunId");
 
+                    b.HasIndex("TalepTuru", "Durum", "OlusturmaTarihi");
+
                     b.ToTable("Talepler");
+                });
+
+            modelBuilder.Entity("Domain.Entities.TalepEslesme", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("EslesmeSkoru")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("OlusturmaTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SaticiId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Sebep")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<int>("TalepId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SaticiId");
+
+                    b.HasIndex("TalepId", "SaticiId")
+                        .IsUnique();
+
+                    b.ToTable("TalepEslesmeleri");
                 });
 
             modelBuilder.Entity("Domain.Entities.TalepTeklif", b =>
@@ -372,6 +686,16 @@ namespace Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("GonderimSehir")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTime?>("GuncellemeTarihi")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("KargoDahilMi")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Mesaj")
                         .IsRequired()
                         .HasColumnType("text");
@@ -384,6 +708,9 @@ namespace Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<int>("TalepId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TeslimatSuresiGun")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -415,11 +742,28 @@ namespace Infrastructure.Migrations
                     b.Property<bool>("AktifMi")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("BirimMiktar")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("EldenTeslimVarMi")
+                        .HasColumnType("boolean");
+
                     b.Property<decimal>("Fiyat")
                         .HasColumnType("numeric");
 
+                    b.Property<string>("GonderimSehirleri")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("GoruntulenmeSayisi")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("GuncellemeTarihi")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("KargoVarMi")
+                        .HasColumnType("boolean");
 
                     b.Property<int>("KategoriId")
                         .HasColumnType("integer");
@@ -433,6 +777,21 @@ namespace Infrastructure.Migrations
 
                     b.Property<int>("StokMiktari")
                         .HasColumnType("integer");
+
+                    b.Property<string>("TeslimatSecenekleri")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("UretimIlce")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("UretimSehir")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("YeniHasatMi")
+                        .HasColumnType("boolean");
 
                     b.HasKey("Id");
 
@@ -722,6 +1081,69 @@ namespace Infrastructure.Migrations
                     b.Navigation("Sender");
                 });
 
+            modelBuilder.Entity("Domain.Entities.FiyatAlarmi", b =>
+                {
+                    b.HasOne("Domain.Entities.ApplicationUser", "Alici")
+                        .WithMany()
+                        .HasForeignKey("AliciId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.Urun", "Urun")
+                        .WithMany()
+                        .HasForeignKey("UrunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Alici");
+
+                    b.Navigation("Urun");
+                });
+
+            modelBuilder.Entity("Domain.Entities.OrtakAlim", b =>
+                {
+                    b.HasOne("Domain.Entities.Kategori", "Kategori")
+                        .WithMany()
+                        .HasForeignKey("KategoriId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Domain.Entities.SaticiProfili", "Satici")
+                        .WithMany()
+                        .HasForeignKey("SaticiId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.Urun", "Urun")
+                        .WithMany()
+                        .HasForeignKey("UrunId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Kategori");
+
+                    b.Navigation("Satici");
+
+                    b.Navigation("Urun");
+                });
+
+            modelBuilder.Entity("Domain.Entities.OrtakAlimKatilim", b =>
+                {
+                    b.HasOne("Domain.Entities.ApplicationUser", "Alici")
+                        .WithMany()
+                        .HasForeignKey("AliciId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.OrtakAlim", "OrtakAlim")
+                        .WithMany("Katilimlar")
+                        .HasForeignKey("OrtakAlimId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Alici");
+
+                    b.Navigation("OrtakAlim");
+                });
+
             modelBuilder.Entity("Domain.Entities.Puan", b =>
                 {
                     b.HasOne("Domain.Entities.ApplicationUser", "Kullanici")
@@ -752,7 +1174,26 @@ namespace Infrastructure.Migrations
                     b.Navigation("Kullanici");
                 });
 
-            modelBuilder.Entity("Domain.Entities.Talep", b =>
+            modelBuilder.Entity("Domain.Entities.SaticiTakip", b =>
+                {
+                    b.HasOne("Domain.Entities.ApplicationUser", "Alici")
+                        .WithMany()
+                        .HasForeignKey("AliciId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.SaticiProfili", "Satici")
+                        .WithMany()
+                        .HasForeignKey("SaticiId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Alici");
+
+                    b.Navigation("Satici");
+                });
+
+            modelBuilder.Entity("Domain.Entities.StokAlarmi", b =>
                 {
                     b.HasOne("Domain.Entities.ApplicationUser", "Alici")
                         .WithMany()
@@ -769,6 +1210,50 @@ namespace Infrastructure.Migrations
                     b.Navigation("Alici");
 
                     b.Navigation("Urun");
+                });
+
+            modelBuilder.Entity("Domain.Entities.Talep", b =>
+                {
+                    b.HasOne("Domain.Entities.ApplicationUser", "Alici")
+                        .WithMany()
+                        .HasForeignKey("AliciId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.Kategori", "Kategori")
+                        .WithMany()
+                        .HasForeignKey("KategoriId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Domain.Entities.Urun", "Urun")
+                        .WithMany()
+                        .HasForeignKey("UrunId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Alici");
+
+                    b.Navigation("Kategori");
+
+                    b.Navigation("Urun");
+                });
+
+            modelBuilder.Entity("Domain.Entities.TalepEslesme", b =>
+                {
+                    b.HasOne("Domain.Entities.SaticiProfili", "Satici")
+                        .WithMany()
+                        .HasForeignKey("SaticiId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.Talep", "Talep")
+                        .WithMany("Eslesmeler")
+                        .HasForeignKey("TalepId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Satici");
+
+                    b.Navigation("Talep");
                 });
 
             modelBuilder.Entity("Domain.Entities.TalepTeklif", b =>
@@ -932,6 +1417,11 @@ namespace Infrastructure.Migrations
                     b.Navigation("Urunler");
                 });
 
+            modelBuilder.Entity("Domain.Entities.OrtakAlim", b =>
+                {
+                    b.Navigation("Katilimlar");
+                });
+
             modelBuilder.Entity("Domain.Entities.SaticiProfili", b =>
                 {
                     b.Navigation("Urunler");
@@ -939,6 +1429,8 @@ namespace Infrastructure.Migrations
 
             modelBuilder.Entity("Domain.Entities.Talep", b =>
                 {
+                    b.Navigation("Eslesmeler");
+
                     b.Navigation("Teklifler");
                 });
 

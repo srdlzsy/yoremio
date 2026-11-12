@@ -16,6 +16,7 @@ namespace Application.DTOs
         public string? KapakResimUrl { get; set; }
         public DateTime KayitTarihi { get; set; }
         public bool AktifMi { get; set; }
+        public string PaketTuru { get; set; } = Domain.Constants.SaticiPaketTurleri.Ucretsiz;
         public bool DogrulanmisSatici { get; set; }
         public bool? AdminDogrulamaDurumu { get; set; }
         public string? Email { get; set; }
@@ -71,7 +72,13 @@ namespace Application.DTOs
         public int ToplamYorum { get; set; }
         public int ToplamFavori { get; set; }
         public double GuvenSkoru { get; set; }
+        public int TakipciSayisi { get; set; }
         public string? KapakResimUrl { get; set; }
         public int? VitrinUrunId { get; set; }
+    }
+
+    public class SaticiTakipIstekDto
+    {
+        public bool BildirimAcikMi { get; set; } = true;
     }
 }

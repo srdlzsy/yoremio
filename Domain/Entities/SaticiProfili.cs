@@ -42,6 +42,9 @@ namespace Domain.Entities
 
         public bool AktifMi { get; set; } = false;
 
+        [StringLength(20)]
+        public string PaketTuru { get; set; } = Domain.Constants.SaticiPaketTurleri.Ucretsiz;
+
         [ForeignKey(nameof(KullaniciId))]
         public virtual ApplicationUser? Kullanici { get; set; }
 

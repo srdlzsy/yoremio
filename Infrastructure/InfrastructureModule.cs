@@ -70,6 +70,10 @@ namespace Infrastructure
             services.AddScoped<IAdminService, AdminService>();
             services.AddScoped<IUrunRepository, UrunRepository>();
             services.AddScoped<IUrunFavoriRepository, UrunFavoriRepository>();
+            services.AddScoped<ISaticiTakipRepository, SaticiTakipRepository>();
+            services.AddScoped<IFiyatAlarmiRepository, FiyatAlarmiRepository>();
+            services.AddScoped<IStokAlarmiRepository, StokAlarmiRepository>();
+            services.AddScoped<IOrtakAlimRepository, OrtakAlimRepository>();
             services.AddScoped<ITalepRepository, TalepRepository>();
             services.AddScoped<IYorumRepository, YorumRepository>();
             services.AddScoped<IPuanRepository, PuanRepository>();
@@ -86,6 +90,7 @@ namespace Infrastructure
             services.AddScoped<IEmailSend, EmailSender>();
             services.AddScoped<IUrunService, UrunService>();
             services.AddScoped<ITalepService, TalepService>();
+            services.AddScoped<IOrtakAlimService, OrtakAlimService>();
             services.AddScoped<IDashboardService, DashboardService>();
             services.AddScoped<IDosyaKaydetService>(provider =>
             {

@@ -14,9 +14,14 @@ namespace Domain.Models
         public string? SaticiId { get; set; }
         public string? Sehir { get; set; }
         public string? Ilce { get; set; }
+        public string? TeslimatSehir { get; set; }
+        public string? UretimSehir { get; set; }
         public bool SadeceAktif { get; set; } = true;
         public bool SadeceStoktaOlanlar { get; set; }
         public bool SadeceDogrulanmisSatici { get; set; }
+        public bool SadeceYeniHasat { get; set; }
+        public bool SadeceEldenTeslim { get; set; }
+        public bool SadeceKargolu { get; set; }
         public double? MinOrtalamaPuan { get; set; }
 
         public int Page

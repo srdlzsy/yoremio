@@ -12,5 +12,8 @@ namespace Application.Interfaces
         Task<SaticiGuvenSkoruDto?> GetGuvenSkoruAsync(string saticiId);
         Task<SaticiOzetDto?> GetPublicSaticiDetayAsync(string saticiId);
         Task<IReadOnlyCollection<SaticiOzetDto>> GetOneCikanSaticilarAsync(int take);
+        Task<bool> SaticiTakipEtAsync(string aliciId, string saticiId, bool bildirimAcikMi = true);
+        Task<bool> SaticiTakibiBirakAsync(string aliciId, string saticiId);
+        Task<IReadOnlyCollection<SaticiOzetDto>> GetTakipEdilenSaticilarAsync(string aliciId);
     }
 }

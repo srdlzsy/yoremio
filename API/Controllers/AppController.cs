@@ -13,6 +13,7 @@ namespace API.Controllers
     {
         private static readonly string[] ProductSorts =
         {
+            "relevance",
             "newest",
             "oldest",
             "price_asc",
@@ -21,7 +22,8 @@ namespace API.Controllers
             "name_desc",
             "top_rated",
             "most_reviewed",
-            "most_favorited"
+            "most_favorited",
+            "most_viewed"
         };
 
         private readonly IKategoriService _kategoriService;

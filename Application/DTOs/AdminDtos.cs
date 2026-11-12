@@ -78,4 +78,16 @@ namespace Application.DTOs
         public DateTime Tarih { get; set; }
         public bool AktifMi { get; set; }
     }
+
+    public class TalepBosluguDto
+    {
+        public string TeslimatSehir { get; set; } = string.Empty;
+        public string ArananUrunAdi { get; set; } = string.Empty;
+        public string? KategoriAdi { get; set; }
+        public int TalepSayisi { get; set; }
+        public int AcikTalepSayisi { get; set; }
+        public int AnlasilanTalepSayisi { get; set; }
+        public double OrtalamaEslesenSaticiSayisi { get; set; }
+        public bool YeterliSaticiYokMu { get; set; }
+    }
 }

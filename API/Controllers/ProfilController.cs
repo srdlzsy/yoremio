@@ -143,6 +143,54 @@ namespace API.Controllers
             return Ok(ApiResponse<AliciProfilDto>.Ok(alici, "Alıcı profili güncellendi.", HttpContext.TraceIdentifier));
         }
 
+        [Authorize(Roles = ApplicationRoles.Alici)]
+        [HttpGet("takip-edilenler")]
+        public async Task<IActionResult> GetTakipEdilenSaticilar()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanıcı doğrulanamadı.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var saticilar = await _saticiProfiliService.GetTakipEdilenSaticilarAsync(userId);
+            return Ok(ApiResponse<IReadOnlyCollection<SaticiOzetDto>>.Ok(saticilar, "Takip edilen üreticiler getirildi.", HttpContext.TraceIdentifier));
+        }
+
+        [Authorize(Roles = ApplicationRoles.Alici)]
+        [HttpPost("satici/{saticiId}/takip")]
+        public async Task<IActionResult> SaticiTakipEt(string saticiId, [FromBody] SaticiTakipIstekDto? dto = null)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanıcı doğrulanamadı.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var added = await _saticiProfiliService.SaticiTakipEtAsync(userId, saticiId, dto?.BildirimAcikMi ?? true);
+            var message = added ? "Üretici takip edildi." : "Üretici takip ayarları güncellendi.";
+            return Ok(ApiResponse<object>.Ok(null, message, HttpContext.TraceIdentifier));
+        }
+
+        [Authorize(Roles = ApplicationRoles.Alici)]
+        [HttpDelete("satici/{saticiId}/takip")]
+        public async Task<IActionResult> SaticiTakibiBirak(string saticiId)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanıcı doğrulanamadı.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var removed = await _saticiProfiliService.SaticiTakibiBirakAsync(userId, saticiId);
+            if (!removed)
+            {
+                return NotFound(ApiResponse<object>.Fail("Takip kaydı bulunamadı.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            return Ok(ApiResponse<object>.Ok(null, "Üretici takibi bırakıldı.", HttpContext.TraceIdentifier));
+        }
+
         [AllowAnonymous]
         [HttpGet("satici/{saticiId}")]
         public async Task<IActionResult> GetSaticiPublicProfil(string saticiId)

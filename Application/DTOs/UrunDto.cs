@@ -7,6 +7,17 @@ namespace Application.DTOs
         public string Aciklama { get; set; } = string.Empty;
         public decimal Fiyat { get; set; }
         public int StokMiktari { get; set; }
+        public string? BirimMiktar { get; set; }
+        public string? TeslimatSecenekleri { get; set; }
+        public bool YeniHasatMi { get; set; }
+        public string? UretimSehir { get; set; }
+        public string? UretimIlce { get; set; }
+        public bool EldenTeslimVarMi { get; set; }
+        public bool KargoVarMi { get; set; }
+        public string? GonderimSehirleri { get; set; }
+        public int GoruntulenmeSayisi { get; set; }
+        public string? Slug { get; set; }
+        public DateTime OlusturmaTarihi { get; set; }
         public bool AktifMi { get; set; }
         public int KategoriId { get; set; }
         public string? KategoriAdi { get; set; }

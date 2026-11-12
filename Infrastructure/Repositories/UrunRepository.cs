@@ -112,6 +112,14 @@ namespace Infrastructure.Repositories
                                .FirstOrDefaultAsync(u => u.Id == id);
         }
 
+        public async Task IncrementViewCountAsync(int id)
+        {
+            await _dbSet
+                .Where(u => u.Id == id)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(u => u.GoruntulenmeSayisi, u => u.GoruntulenmeSayisi + 1));
+        }
+
         public async Task<PagedResult<Urun>> QueryAsync(UrunQuery query)
         {
             var minFiyat = query.MinFiyat;
@@ -146,7 +154,10 @@ namespace Infrastructure.Repositories
                 var term = query.Q.Trim().ToLower();
                 urunler = urunler.Where(u =>
                     u.Adi.ToLower().Contains(term) ||
-                    u.Aciklama.ToLower().Contains(term));
+                    u.Aciklama.ToLower().Contains(term) ||
+                    (u.UretimSehir != null && u.UretimSehir.ToLower().Contains(term)) ||
+                    (u.UretimIlce != null && u.UretimIlce.ToLower().Contains(term)) ||
+                    (u.Satici.MagazaAdi != null && u.Satici.MagazaAdi.ToLower().Contains(term)));
             }
 
             if (!string.IsNullOrWhiteSpace(query.SaticiId))
@@ -164,6 +175,29 @@ namespace Infrastructure.Repositories
             {
                 var ilce = query.Ilce.Trim().ToLower();
                 urunler = urunler.Where(u => u.Satici.Ilce != null && u.Satici.Ilce.ToLower().Contains(ilce));
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.UretimSehir))
+            {
+                var uretimSehir = query.UretimSehir.Trim().ToLower();
+                urunler = urunler.Where(u =>
+                    (u.UretimSehir != null && u.UretimSehir.ToLower().Contains(uretimSehir)) ||
+                    (u.UretimSehir == null && u.Satici.Sehir != null && u.Satici.Sehir.ToLower().Contains(uretimSehir)));
+            }
+
+            string? normalizedDeliveryCity = string.IsNullOrWhiteSpace(query.TeslimatSehir)
+                ? null
+                : query.TeslimatSehir.Trim().ToLower();
+
+            if (normalizedDeliveryCity != null)
+            {
+                urunler = urunler.Where(u =>
+                    (u.Satici.Sehir != null && u.Satici.Sehir.ToLower().Contains(normalizedDeliveryCity)) ||
+                    (u.KargoVarMi &&
+                     (string.IsNullOrWhiteSpace(u.GonderimSehirleri) ||
+                      u.GonderimSehirleri.ToLower().Contains("tüm türkiye") ||
+                      u.GonderimSehirleri.ToLower().Contains("tum turkiye") ||
+                      u.GonderimSehirleri.ToLower().Contains(normalizedDeliveryCity))));
             }
 
             if (query.KategoriId.HasValue)
@@ -186,6 +220,21 @@ namespace Infrastructure.Repositories
                 urunler = urunler.Where(u => u.StokMiktari > 0);
             }
 
+            if (query.SadeceYeniHasat)
+            {
+                urunler = urunler.Where(u => u.YeniHasatMi);
+            }
+
+            if (query.SadeceEldenTeslim)
+            {
+                urunler = urunler.Where(u => u.EldenTeslimVarMi);
+            }
+
+            if (query.SadeceKargolu)
+            {
+                urunler = urunler.Where(u => u.KargoVarMi);
+            }
+
             if (query.SadeceDogrulanmisSatici)
             {
                 urunler = urunler.Where(u =>
@@ -204,6 +253,18 @@ namespace Infrastructure.Repositories
 
             urunler = (query.Sort ?? string.Empty).ToLowerInvariant() switch
             {
+                "relevance" when normalizedDeliveryCity != null => urunler
+                    .OrderByDescending(u => u.Satici.Sehir != null && u.Satici.Sehir.ToLower().Contains(normalizedDeliveryCity) ? 1 : 0)
+                    .ThenByDescending(u => u.EldenTeslimVarMi && u.Satici.Sehir != null && u.Satici.Sehir.ToLower().Contains(normalizedDeliveryCity) ? 1 : 0)
+                    .ThenByDescending(u => u.GonderimSehirleri != null && u.GonderimSehirleri.ToLower().Contains(normalizedDeliveryCity) ? 1 : 0)
+                    .ThenByDescending(u => u.StokMiktari > 0 ? 1 : 0)
+                    .ThenByDescending(u => u.Puanlar.Any() ? u.Puanlar.Average(p => p.PuanDegeri) : 0)
+                    .ThenByDescending(u => u.OlusturmaTarihi),
+                "relevance" => urunler
+                    .OrderByDescending(u => u.StokMiktari > 0 ? 1 : 0)
+                    .ThenByDescending(u => u.YeniHasatMi ? 1 : 0)
+                    .ThenByDescending(u => u.Puanlar.Any() ? u.Puanlar.Average(p => p.PuanDegeri) : 0)
+                    .ThenByDescending(u => u.OlusturmaTarihi),
                 "price_asc" => urunler.OrderBy(u => u.Fiyat),
                 "price_desc" => urunler.OrderByDescending(u => u.Fiyat),
                 "name_asc" => urunler.OrderBy(u => u.Adi),
@@ -214,6 +275,8 @@ namespace Infrastructure.Repositories
                                          .ThenByDescending(u => u.OlusturmaTarihi),
                 "most_favorited" => urunler.OrderByDescending(u => u.Favoriler.Count)
                                           .ThenByDescending(u => u.OlusturmaTarihi),
+                "most_viewed" => urunler.OrderByDescending(u => u.GoruntulenmeSayisi)
+                                       .ThenByDescending(u => u.OlusturmaTarihi),
                 "newest" => urunler.OrderByDescending(u => u.OlusturmaTarihi),
                 "oldest" => urunler.OrderBy(u => u.OlusturmaTarihi),
                 _ => urunler.OrderByDescending(u => u.OlusturmaTarihi)

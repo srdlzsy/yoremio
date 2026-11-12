@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -18,6 +18,24 @@ namespace Domain.Entities
         public decimal Fiyat { get; set; }
 
         public int StokMiktari { get; set; }
+
+        public string? BirimMiktar { get; set; }
+
+        public string? TeslimatSecenekleri { get; set; }
+
+        public bool YeniHasatMi { get; set; }
+
+        public string? UretimSehir { get; set; }
+
+        public string? UretimIlce { get; set; }
+
+        public bool EldenTeslimVarMi { get; set; } = true;
+
+        public bool KargoVarMi { get; set; } = true;
+
+        public string? GonderimSehirleri { get; set; }
+
+        public int GoruntulenmeSayisi { get; set; }
 
         public DateTime OlusturmaTarihi { get; set; } = DateTime.UtcNow;
 

@@ -10,16 +10,19 @@ namespace Infrastructure.Services
         private readonly ISaticiProfiliRepository _saticiRepo;
         private readonly IUrunRepository _urunRepository;
         private readonly IDosyaKaydetService? _dosyaKaydetService;
+        private readonly ISaticiTakipRepository? _saticiTakipRepository;
 
         public SaticiProfiliService(
             ISaticiProfiliRepository saticiRepo,
             IUrunRepository urunRepository,
-            IDosyaKaydetService? dosyaKaydetService = null)
+            IDosyaKaydetService? dosyaKaydetService = null,
+            ISaticiTakipRepository? saticiTakipRepository = null)
             : base(saticiRepo)
         {
             _saticiRepo = saticiRepo;
             _urunRepository = urunRepository;
             _dosyaKaydetService = dosyaKaydetService;
+            _saticiTakipRepository = saticiTakipRepository;
         }
 
         public async Task<SaticiProfili?> GetByVergiNoAsync(string vergiNo)
@@ -146,7 +149,13 @@ namespace Infrastructure.Services
         public async Task<SaticiOzetDto?> GetPublicSaticiDetayAsync(string saticiId)
         {
             var satici = await _saticiRepo.GetSaticiPublicDetailsByIdAsync(saticiId);
-            return satici is null ? null : MapToOzetDto(satici);
+            if (satici is null)
+            {
+                return null;
+            }
+
+            var takipciSayisi = _saticiTakipRepository is null ? 0 : await _saticiTakipRepository.GetFollowerCountAsync(saticiId);
+            return MapToOzetDto(satici, takipciSayisi);
         }
 
         public async Task<IReadOnlyCollection<SaticiOzetDto>> GetOneCikanSaticilarAsync(int take)
@@ -155,12 +164,84 @@ namespace Infrastructure.Services
             var saticilar = await _saticiRepo.GetOneCikanSaticilarAsync(effectiveTake);
 
             return saticilar
-                .Select(MapToOzetDto)
+                .Select(s => MapToOzetDto(s))
                 .OrderByDescending(s => s.GuvenSkoru)
                 .ThenByDescending(s => s.OrtalamaPuan)
                 .ThenByDescending(s => s.ToplamFavori)
                 .ThenBy(s => s.MagazaAdi)
                 .Take(effectiveTake)
+                .ToList();
+        }
+
+        public async Task<bool> SaticiTakipEtAsync(string aliciId, string saticiId, bool bildirimAcikMi = true)
+        {
+            if (string.Equals(aliciId, saticiId, StringComparison.Ordinal))
+            {
+                throw new ArgumentException("Kendi magazanizi takip edemezsiniz.");
+            }
+
+            if (_saticiTakipRepository is null)
+            {
+                throw new InvalidOperationException("Takip servisi yapilandirilmamis.");
+            }
+
+            var satici = await _saticiRepo.GetByIdAsync(saticiId);
+            if (satici is null || !satici.AktifMi)
+            {
+                throw new KeyNotFoundException("Satici bulunamadi.");
+            }
+
+            var mevcut = await _saticiTakipRepository.GetAsync(aliciId, saticiId);
+            if (mevcut is not null)
+            {
+                if (mevcut.BildirimAcikMi != bildirimAcikMi)
+                {
+                    mevcut.BildirimAcikMi = bildirimAcikMi;
+                    _saticiTakipRepository.Update(mevcut);
+                    await _saticiTakipRepository.SaveChangesAsync();
+                }
+
+                return false;
+            }
+
+            await _saticiTakipRepository.AddAsync(new SaticiTakip
+            {
+                AliciId = aliciId,
+                SaticiId = saticiId,
+                BildirimAcikMi = bildirimAcikMi
+            });
+
+            return await _saticiTakipRepository.SaveChangesAsync();
+        }
+
+        public async Task<bool> SaticiTakibiBirakAsync(string aliciId, string saticiId)
+        {
+            if (_saticiTakipRepository is null)
+            {
+                throw new InvalidOperationException("Takip servisi yapilandirilmamis.");
+            }
+
+            var mevcut = await _saticiTakipRepository.GetAsync(aliciId, saticiId);
+            if (mevcut is null)
+            {
+                return false;
+            }
+
+            _saticiTakipRepository.Remove(mevcut);
+            return await _saticiTakipRepository.SaveChangesAsync();
+        }
+
+        public async Task<IReadOnlyCollection<SaticiOzetDto>> GetTakipEdilenSaticilarAsync(string aliciId)
+        {
+            if (_saticiTakipRepository is null)
+            {
+                return Array.Empty<SaticiOzetDto>();
+            }
+
+            var takipler = await _saticiTakipRepository.GetByAliciAsync(aliciId);
+            return takipler
+                .Where(t => t.Satici is not null)
+                .Select(t => MapToOzetDto(t.Satici!))
                 .ToList();
         }
 
@@ -178,6 +259,7 @@ namespace Infrastructure.Services
                 KapakResimUrl = satici.KapakResimUrl,
                 KayitTarihi = satici.KayitTarihi,
                 AktifMi = satici.AktifMi,
+                PaketTuru = satici.PaketTuru,
                 DogrulanmisSatici = IsSellerVerified(satici),
                 AdminDogrulamaDurumu = satici.AdminDogrulandiMi,
                 Email = satici.Kullanici?.Email,
@@ -186,7 +268,7 @@ namespace Infrastructure.Services
             };
         }
 
-        private static SaticiOzetDto MapToOzetDto(SaticiProfili satici)
+        private static SaticiOzetDto MapToOzetDto(SaticiProfili satici, int takipciSayisi = 0)
         {
             var aktifUrunler = satici.Urunler.Where(u => u.AktifMi).ToList();
             var toplamPuan = aktifUrunler.Sum(u => u.Puanlar.Count);
@@ -217,6 +299,7 @@ namespace Infrastructure.Services
                 ToplamYorum = toplamYorum,
                 ToplamFavori = toplamFavori,
                 GuvenSkoru = guvenSkoru,
+                TakipciSayisi = takipciSayisi,
                 VitrinUrunId = vitrinUrun?.Id,
                 KapakResimUrl = !string.IsNullOrWhiteSpace(satici.KapakResimUrl)
                     ? satici.KapakResimUrl

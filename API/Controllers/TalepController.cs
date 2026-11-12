@@ -32,6 +32,51 @@ namespace API.Controllers
             return Ok(ApiResponse<TalepDto>.Ok(result, "Talep olusturuldu.", HttpContext.TraceIdentifier));
         }
 
+        [Authorize(Roles = ApplicationRoles.Alici)]
+        [HttpPost("pazar")]
+        public async Task<IActionResult> AcikTalepOlustur([FromBody] AcikTalepOlusturDto dto)
+        {
+            var aliciId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(aliciId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanici dogrulanamadi.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var result = await _talepService.AcikTalepOlusturAsync(aliciId, dto);
+            return Ok(ApiResponse<TalepDto>.Ok(result, "Acik pazar talebi olusturuldu ve uygun ureticilerle eslestirildi.", HttpContext.TraceIdentifier));
+        }
+
+        [Authorize(Roles = ApplicationRoles.Alici)]
+        [HttpPost("{talepId:int}/tekrarla")]
+        public async Task<IActionResult> TalepTekrarla(int talepId, [FromBody] TalepTekrarlaDto? dto = null)
+        {
+            var aliciId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(aliciId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanici dogrulanamadi.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var result = await _talepService.TalepTekrarlaAsync(talepId, aliciId, dto);
+            return Ok(ApiResponse<TalepDto>.Ok(result, "Talep yeniden olusturuldu.", HttpContext.TraceIdentifier));
+        }
+
+        [Authorize(Roles = ApplicationRoles.Satici)]
+        [HttpGet("pazar")]
+        public async Task<IActionResult> GetAcikPazarTalepleri(
+            [FromQuery] string? durum = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 12)
+        {
+            var saticiId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(saticiId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanici dogrulanamadi.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var paged = await _talepService.GetAcikPazarTalepleriAsync(saticiId, durum, page, pageSize);
+            return Ok(ApiResponse<Domain.Models.PagedResult<TalepDto>>.Ok(paged, "Acik pazar talepleri getirildi.", HttpContext.TraceIdentifier));
+        }
+
         [Authorize]
         [HttpGet("{talepId:int}")]
         public async Task<IActionResult> GetTalepById(int talepId)
@@ -146,6 +191,20 @@ namespace API.Controllers
 
             var result = await _talepService.TalepIptalEtAsync(talepId, aliciId);
             return Ok(ApiResponse<TalepDto>.Ok(result, "Talep iptal edildi.", HttpContext.TraceIdentifier));
+        }
+
+        [Authorize]
+        [HttpPost("{talepId:int}/anlasma-onayi")]
+        public async Task<IActionResult> AnlasmaOnayiVer(int talepId, [FromBody] AnlasmaOnayiDto dto)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(ApiResponse<object>.Fail("Kullanici dogrulanamadi.", traceId: HttpContext.TraceIdentifier));
+            }
+
+            var result = await _talepService.AnlasmaOnayiVerAsync(talepId, userId, dto);
+            return Ok(ApiResponse<TalepDto>.Ok(result, "Anlasma gerceklesme onayi kaydedildi.", HttpContext.TraceIdentifier));
         }
     }
 }
