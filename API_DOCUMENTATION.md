@@ -1012,6 +1012,8 @@ Response örneği:
     "sehir": "Ardahan",
     "ilce": "Posof",
     "dogrulanmisSatici": true,
+    "paketTuru": "UCRETSIZ",
+    "takipciSayisi": 42,
     "urunSayisi": 12,
     "ortalamaPuan": 4.8,
     "toplamYorum": 34,
@@ -1070,6 +1072,13 @@ Not:
 
 - `userName` güncellendiğinde ürün yorumları, puan listeleri (`PuanDto.kullaniciAdi`) ve taleplerdeki `aliciAdi` görünen adı otomatik güncellenir.
 - `sehir` ve `ilce` bilgisi `GET /api/Urun/onerilen` akışındaki kişiselleştirilmiş öneri sıralamasında önceliklendirme için kullanılır.
+
+### 7.7 Satıcı Takibi ve Yeni Ürün/Hasat Bildirimleri
+
+- `POST /api/Profil/satici/{saticiId}/takip` (`ALICI`): Üreticiyi takip eder (body opsiyonel `{ "bildirimAcikMi": true }`).
+- `DELETE /api/Profil/satici/{saticiId}/takip` (`ALICI`): Takibi bırakır.
+- `GET /api/Profil/takip-edilenler` (`ALICI`): Takip edilen üreticilerin `SaticiOzetDto` listesini döner.
+- Üretici yeni aktif ürün eklediğinde veya stok güncellerken yeni hasat işaretlediğinde takipçilere otomatik `URUN` / `HASAT` bildirimi gider.
 
 ## 8. Kategori API
 
@@ -1173,9 +1182,19 @@ UI notu:
 {
   "id": 10,
   "adi": "Yayla Balı",
+  "slug": "yayla-bali",
   "aciklama": "Posof yaylalarından toplanan çiçek balı.",
   "fiyat": 420,
   "stokMiktari": 12,
+  "birimMiktar": "850 g kavanoz",
+  "teslimatSecenekleri": "Soğuk zincir kargo, Yerinden teslim",
+  "yeniHasatMi": true,
+  "goruntulenmeSayisi": 148,
+  "uretimSehir": "Ardahan",
+  "uretimIlce": "Posof",
+  "eldenTeslimVarMi": true,
+  "kargoVarMi": true,
+  "gonderimSehirleri": "Türkiye Geneli",
   "kategoriId": 5,
   "kategoriAdi": "Bal",
   "saticiId": "seller-user-id",
@@ -1221,6 +1240,11 @@ Query params:
 | `saticiId` | string | null | Satıcıya göre filtre. |
 | `sehir` | string | null | Satıcı şehir filtresi, contains mantığı. |
 | `ilce` | string | null | Satıcı ilçe filtresi, contains mantığı. |
+| `uretimSehir` | string | null | Ürünün gerçek menşei/üretim şehri filtresi (satıcı konumundan bağımsız). |
+| `teslimatSehir` | string | null | Hem o şehirdeki yerel satıcıları hem de kargo ile o şehre gönderim yapan uzak üreticileri getirir. |
+| `sadeceEldenTeslim` | bool | false | Elden teslim seçeneği sunan ürünleri getirir. |
+| `sadeceKargolu` | bool | false | Kargo gönderimi sunan ürünleri getirir. |
+| `sadeceYeniHasat` | bool | false | Yalnızca `yeniHasatMi=true` ürünleri getirir. |
 | `sadeceAktif` | bool | true | Aktif ürünleri getirir. |
 | `sadeceStoktaOlanlar` | bool | false | Stok `> 0` ürünleri getirir. |
 | `sadeceDogrulanmisSatici` | bool | false | Yalnızca doğrulanmış satıcıların ürünlerini getirir. |
@@ -1231,11 +1255,13 @@ Query params:
 
 `sort` değerleri:
 
+- `relevance` (teslimat şehrindeki yerel satıcıları ve o şehre gönderenleri öne çıkarır)
 - `price_asc`
 - `price_desc`
 - `name_asc`
 - `name_desc`
 - `top_rated`
+- `most_viewed`
 - `most_reviewed`
 - `most_favorited`
 - `newest`
@@ -1460,6 +1486,20 @@ Auth: `SATICI`
 
 Auth: `SATICI`
 
+### 9.15 Akıllı Konum Bazlı Keşif ve Alternatif Önerileri
+
+`GET /api/Urun/kesfet` (`AllowAnonymous`)
+
+- `GET /api/Urun` ile aynı query parametrelerini (`q`, `teslimatSehir`, `uretimSehir`, `sort=relevance` vb.) alır.
+- Response `data`: `UrunKesfetSonucDto` (`sonuclar: PagedResult<UrunDto>` ve `alternatifler?: AkilliAlternatiflerDto`).
+- Doğrudan sonuç sayısı `0` olduğunda boş sayfa yerine `alternatifler` dolar: `ayniYoredenUrunler`, `sehreGonderimYapanlar`, `stoguTukenenUrunler` (stok alarmı için), `aktifOrtakAlimlar` ve `benimIcinBulOnerisi` (`POST /api/Talep/pazar` çağrısı için hazır bağlam).
+
+### 9.16 Toplu Stok/Fiyat/Hasat Güncelleme, Fiyat Alarmı ve Stok Alarmı
+
+- `PATCH /api/Urun/toplu-stok` (`SATICI`): Body `{ "kalemler": [{ "urunId": 10, "stokMiktari": 25, "fiyat": 390, "yeniHasatMi": true }] }`. Fiyat düşüşünde `FIYAT_ALARMI`, stok `0 -> >0` geçişinde `STOK_ALARMI` bildirimlerini otomatik tetikler.
+- `POST /api/Urun/{urunId}/fiyat-alarmi` (`ALICI`, body `{ "hedefFiyat": 380 }`), `DELETE /api/Urun/{urunId}/fiyat-alarmi`, `GET /api/Urun/fiyat-alarmlarim`.
+- `POST /api/Urun/{urunId}/stok-alarmi` (`ALICI`), `DELETE /api/Urun/{urunId}/stok-alarmi`, `GET /api/Urun/stok-alarmlarim`.
+
 ## 10. Puan API
 
 ### 10.1 Puan Ver / Güncelle
@@ -1655,10 +1695,23 @@ Not:
 ```json
 {
   "id": 1,
+  "talepTuru": "URUN",
+  "talepTipi": "BIREYSEL",
   "aliciId": "buyer-user-id",
   "aliciAdi": "alici_ayse",
   "urunId": 10,
   "urunAdi": "Yayla Balı",
+  "arananUrunAdi": null,
+  "kategoriId": 5,
+  "kategoriAdi": "Bal",
+  "teslimatSehir": "İstanbul",
+  "tercihEdilenSehirler": "Ardahan, Kars",
+  "birim": "kg",
+  "hedefBirimFiyat": 390,
+  "sonTeklifTarihi": "2026-03-17T08:00:00Z",
+  "aliciGerceklestiOnayi": null,
+  "saticiGerceklestiOnayi": null,
+  "eslesenSaticiSayisi": 0,
   "urunResimUrl": "/demo-media/yayla-bali/resimler/1.jpg",
   "urunFiyat": 420,
   "saticiId": "seller-user-id",
@@ -1840,11 +1893,18 @@ Auth: `ALICI` veya `SATICI`
 
 Mantık:
 
-- Yalnızca ilgili talebin alıcısı veya talebin ürününün satıcısı erişebilir (yetkisiz kullanıcıya `403 Forbidden`, bulunamazsa `404 Not Found`).
+- Yalnızca ilgili talebin alıcısı, ürün satıcısı veya açık pazar talebinde eşleşen/teklif veren satıcı erişebilir (`403 Forbidden`, bulunamazsa `404 Not Found`).
 
 Response:
 
 - `data`: `TalepDto`
+
+### 12.6.4 Akıllı Açık Pazar Talebi ("Benim İçin Bul") ve Tekrar/Onay Uçları
+
+- `POST /api/Talep/pazar` (`ALICI`): Belirli bir ürün seçmeden talep ilanı açar (`arananUrunAdi`, `kategoriId`, `miktar`, `birim`, `talepTipi`: `BIREYSEL` | `KURUMSAL`, `teslimatSehir`, `tercihEdilenSehirler`, `hedefBirimFiyat`, `sonTeklifTarihi`). Akıllı Üretici Eşleştirme motoru uygun satıcıları skorlayıp `TalepEslesme` kaydeder ve yalnızca eşleşen satıcılara `ACIK_TALEP` bildirimi gönderir.
+- `GET /api/Talep/pazar` (`SATICI`): Satıcı için akıllı eşleşmiş ve açık pazar taleplerini sayfalı (`durum`, `teslimatSehir`, `page`, `pageSize`) döner.
+- `POST /api/Talep/{talepId}/tekrarla` (`ALICI`): Geçmiş ürün veya açık pazar talebini tek dokunuşla yeni `ACIK` talep olarak kopyalar.
+- `POST /api/Talep/{talepId}/anlasma-onayi` (`ALICI` veya `SATICI`): `ANLASILDI` aşamasındaki talep için platform dışı teslimat/anlaşma gerçekleşme teyidi (`{ "gerceklestiMi": true }`) kaydeder.
 
 ### 12.7 Yardim/Destek Talebi
 
@@ -1879,6 +1939,18 @@ Not:
 
 - `konu` ve `mesaj` zorunludur; diger alanlar opsiyoneldir.
 - Talep backend tarafinda loglanir ve takip icin `talepId` dondurulur.
+
+### 12.8 Yöremio Ortak Alım API
+
+Bölgesel toplu sipariş organizasyonu (ör. Ardahan üreticisinden Bursa teslimatına ortak alım):
+
+- `GET /api/OrtakAlim?hedefSehir=&menseiSehir=&q=&durum=&page=1&pageSize=12` (`AllowAnonymous`): Ortak alım kampanyalarını listeler (`soğukZincirGerekliMi`, `teslimatKosullari`, `iptalKosullari`, `minimumKatilimci`, `mevcutKatilimci`, `toplamTalepMiktari`).
+- `GET /api/OrtakAlim/{id}` (`AllowAnonymous`): Ortak alım detayını döner.
+- `POST /api/OrtakAlim` (`Authorize` - `SATICI` veya `ALICI`): Satıcı açarsa doğrudan `ACIK`, alıcı mevcut/hedef satıcı için önerirse `ONAY_BEKLIYOR` olarak başlar ve satıcıya `ORTAK_ALIM` bildirimi gider.
+- `POST /api/OrtakAlim/{id}/onayla` (`SATICI`): Alıcı tarafından önerilen `ONAY_BEKLIYOR` ortak alımı onaylar ve `ACIK` duruma geçirir.
+- `POST /api/OrtakAlim/{id}/katil` (`ALICI`): Katılım sağlar (`{ "katilimMiktari": 2, "not": "..." }`); katılımcı sayısı `minimumKatilimci` hedefine ulaştığında durum otomatik `HEDEF_TAMAMLANDI` olur.
+- `DELETE /api/OrtakAlim/{id}/katil` (`ALICI`): Katılımı iptal eder.
+- `PATCH /api/OrtakAlim/{id}/durum` (`SATICI`): `TESLIM_EDILDI` veya `IPTAL` durum güncellemesi yapar; katılımcılara bildirim gönderir.
 
 ## 13. Chat API
 
@@ -2133,15 +2205,24 @@ Response `data`:
   "pendingOffers": 2,
   "acceptedOffers": 3,
   "rejectedOffers": 1,
-  "unreadMessages": 5
+  "unreadMessages": 5,
+  "totalProductViews": 1420,
+  "unansweredDemands": 2,
+  "matchedOpenMarketDemands": 5,
+  "lowStockProducts": 1,
+  "followerCount": 18,
+  "averageResponseMinutes": 45.5,
+  "verifiedCompletedDeals": 3,
+  "topRequestedProducts": [],
+  "actionSuggestions": []
 }
 ```
 
 UI gorevleri:
 
-- Satici ana panel KPI kartlari.
-- Urun yonetimi tab'lerinde aktif/pasif/stokta yok sayaclari.
-- Talep/teklif badge'leri.
+- Satici ana panel kontrol merkezi KPI kartlari ve aksiyon onerileri.
+- Urun yonetimi tab'lerinde aktif/pasif/stokta yok/dusuk stok sayaclari.
+- Talep/teklif/acik pazar firsat badge'leri.
 - Guven skoru progress/rozet gosterimi.
 - Mesaj merkezi okunmamis sayaci.
 
@@ -2167,20 +2248,27 @@ Response `data`:
   "agreedDemands": 20,
   "totalReviews": 72,
   "totalMessages": 410,
-  "unreadMessages": 12
+  "unreadMessages": 12,
+  "openMarketDemands": 9,
+  "verifiedCompletedDeals": 14,
+  "offerConversionRatePercent": 42.5,
+  "dealAgreementRatePercent": 44.4,
+  "repeatBuyers60Days": 19,
+  "repeatBuyerRatePercent": 38.0
 }
 ```
 
 UI gorevleri:
 
 - Admin ana panel KPI kartlari.
-- Kullanici/satici/urun/moderasyon ekranlarina hizli link kartlari.
+- Kullanici/satici/urun/moderasyon/arz boslugu ekranlarina hizli link kartlari.
 - Operasyonel bos durum ve uyari kararlarinda sayac kaynagi.
 
-### 14.4 Admin Doğrulama & Moderasyon API
+### 14.4 Admin Doğrulama, Moderasyon & Arz Boşluğu API
 
 Tüm `/api/Admin/...` uçları yalnızca `ADMIN` rolü ile erişilebilir.
 
+- `GET /api/Admin/talep-bosluklari?limit=20`: Açık pazar taleplerini `(teslimatSehir, arananUrunAdi)` bazında gruplayarak arz boşluklarını (`talepSayisi`, `ortalamaEslesenSaticiSayisi`, `yeterliSaticiYokMu`) raporlar.
 - `GET /api/Admin/kullanicilar?rol=SATICI&search=posof&page=1&pageSize=20`: Sayfalı kullanıcı listesi (`roller`, `saticiDogrulandi`, `saticiAktifMi`, `urunSayisi`).
 - `PATCH /api/Admin/saticilar/{saticiId}/dogrulama`: Satıcı manuel doğrulama kararını set eder. Body: `{ "dogrulandi": true | false | null, "aciklama": "..." }`. (`null` verildiğinde profil tamamlanma kontrolüne geri döner.)
 - `PATCH /api/Admin/saticilar/{saticiId}/durum`: Satıcıyı aktif/pasif yapar ve ilgili satıcıya bildirim gönderir. Body: `{ "aktifMi": false, "aciklama": "..." }`.
@@ -2239,7 +2327,7 @@ Server -> Client eventleri:
 | `ConversationRead` | `otherUserId`, `markedCount`, `readAtUtc` | Caller'ın okundu işaretleme sonucu. |
 | `MessagesRead` | `readerUserId`, `readAtUtc` | Karşı taraf mesajlarınızı okudu. |
 | `Typing` | `fromUserId` | Karşı kullanıcı yazıyor. |
-| `NotificationReceived` | `BildirimDto` | Yeni bildirim oluştuğunda (`TALEP`, `TEKLIF`, `MESAJ`, `SISTEM`, `DESTEK`) alıcıya canlı payload (`okunmamisSayisi` dahil) gönderilir. |
+| `NotificationReceived` | `BildirimDto` | Yeni bildirim oluştuğunda (`TALEP`, `TEKLIF`, `ACIK_TALEP`, `FIYAT_ALARMI`, `STOK_ALARMI`, `URUN`, `HASAT`, `ORTAK_ALIM`, `MESAJ`, `SISTEM`, `DESTEK`) alıcıya canlı payload (`okunmamisSayisi` dahil) gönderilir. |
 | `UnreadNotificationCountUpdated` | `okunmamisSayisi` (`number`) | Okundu işaretleme veya yeni bildirim sonrası güncel okunmamış bildirim sayacı gönderilir. |
 
 Önerilen frontend event setup:

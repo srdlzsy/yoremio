@@ -178,15 +178,21 @@ Production notu:
 - Render gibi kalici disk vermeyen ortamlarda local `wwwroot` uploadlari kalici kabul edilmemelidir.
 - Production icin `Cloudinary__Enabled=true` kullanilmasi daha dogrudur.
 
-## 9. Urun Kesif ve One Cikan Saticilar
+## 9. Urun Kesif, Konum Ayrimi ve Akilli Alternatifler
 
 Public urun kesfi:
 
 ```txt
-GET /api/Urun?q=&kategoriId=&minFiyat=&maxFiyat=&sadeceDogrulanmisSatici=&sort=&page=&pageSize=
+GET /api/Urun?q=&kategoriId=&minFiyat=&maxFiyat=&uretimSehir=&teslimatSehir=&sadeceEldenTeslim=&sadeceKargolu=&sadeceYeniHasat=&sadeceDogrulanmisSatici=&sort=&page=&pageSize=
+GET /api/Urun/kesfet?q=&teslimatSehir=&uretimSehir=&sort=&page=&pageSize=
 ```
 
-Bu endpoint arama, filtreleme (`sadeceDogrulanmisSatici=true` dahil), siralama ve sayfalama icin ana kaynaktir.
+Konum ve teslimat mantigi:
+
+- `UretimSehir` / `UretimIlce` (mensei) ile satici konumu ve `GonderimSehirleri` / `EldenTeslimVarMi` / `KargoVarMi` ayri tutulur.
+- `TeslimatSehir` filtresi hem o sehirdeki yerel saticilari hem de kargo ile o sehre gonderim yapan uzak ureticileri getirir; `sort=relevance` yerel + o sehre gonderen urunleri ustte siralar.
+- `GET /api/Urun/kesfet` sonucunda urun bulunamazsa bos ekran yerine `alternatifler` doner: `ayniYoredenUrunler`, `sehreGonderimYapanlar`, `stoguTukenenUrunler` (stok alarmi kurulabilir), `aktifOrtakAlimlar` ve `benimIcinBulOnerisi` (`POST /api/Talep/pazar`).
+- Stogu `0` olan urunlerde `POST /api/Urun/{urunId}/stok-alarmi`, fiyat dususu icin `POST /api/Urun/{urunId}/fiyat-alarmi` ve satici yenilikleri icin `POST /api/Profil/satici/{saticiId}/takip` desteklenir.
 
 One cikan saticilar ve public magaza ozeti:
 
@@ -207,29 +213,30 @@ Satici kartlari icin onemli alanlar:
 
 Frontend satici kartina tiklayinca belirsizlik olmamasi icin `vitrinUrunId` varsa urun detayina gidebilir.
 
-## 10. Talep ve Teklif Akisi
+## 10. Talep, Teklif, Akilli Acik Pazar ve Ortak Alim Akisi
 
-Yoremio'da satin alma yerine "talep ve anlasma" modeli vardir.
+Yoremio'da satin alma yerine "talep ve anlasma" modeli vardir:
 
 ```txt
-ALICI urun detayindan talep acar
-  -> POST /api/Talep
-  -> Talep durumu ACIK
+1) Direkt Urun Talebi:
+   ALICI urun detayindan talep acar -> POST /api/Talep (TalepTuru = URUN)
 
-SATICI gelen talepleri gorur
-  -> GET /api/Talep/satici
+2) Akilli Acik Pazar Talebi ("Benim Icin Bul"):
+   ALICI belirli bir urunu secmeksizin aradigi urunu ve teslimat sehrini ilan eder
+     -> POST /api/Talep/pazar (TalepTuru = ACIK_PAZAR)
+     -> Sistem kategori/yore/teslimat kapsamina gore aktif saticilari skorlayarak TalepEslesmeleri kaydeder
+     -> Sadece eslesen ureticilere hedefli bildirim gider
+     -> Saticilar GET /api/Talep/pazar uzerinden gorur ve POST /api/Talep/{talepId}/teklif ile teklif yaristirir
 
-SATICI teklif verir
-  -> POST /api/Talep/{talepId}/teklif
+3) Ortak Aksiyonlar & Elde Tutma:
+   - Tek dokunusla gecmis talebi tekrarlama -> POST /api/Talep/{talepId}/tekrarla
+   - Teklif kabul / red / iptal -> POST /api/Talep/teklif/{teklifId}/kabul|red, POST /api/Talep/{talepId}/iptal
+   - Platform disi anlasma tamamlama teyidi -> POST /api/Talep/{talepId}/anlasma-onayi
 
-ALICI teklifi kabul eder
-  -> POST /api/Talep/teklif/{teklifId}/kabul
-  -> Talep durumu ANLASILDI
-
-ALICI teklifi reddedebilir veya talebi iptal edebilir
-  -> POST /api/Talep/teklif/{teklifId}/red (talep ACIK kalir, satici revize teklif verebilir)
-  -> POST /api/Talep/{talepId}/iptal (talep IPTAL olur)
-  -> GET /api/Talep/{talepId} (alici veya urun saticisi detay goruntuler)
+4) Yoremio Ortak Alim (/api/OrtakAlim):
+   - Satici dogrudan ACIK grup siparisi acar veya alici bir ureticiye ONAY_BEKLIYOR ortak alim onerir
+   - Satici onaylar (POST /api/OrtakAlim/{id}/onayla) -> alicilar katilir (POST /api/OrtakAlim/{id}/katil)
+   - Katilimci sayisi MinimumKatilimci degerine ulasinca durum HEDEF_TAMAMLANDI olur; teslimat ve soguk zincir/iptal kosullari seffaf tasinir.
 ```
 
 Bu modelin etkileri:
@@ -386,7 +393,8 @@ Ana sayfa:
 ```txt
 GET /api/App/bootstrap
 GET /api/Kategori
-GET /api/Urun
+GET /api/Urun/kesfet
+GET /api/OrtakAlim
 GET /api/Profil/saticilar/one-cikan
 ```
 
@@ -401,11 +409,14 @@ POST /api/Auth/login
 Satici paneli:
 
 ```txt
-GET /api/Dashboard/satici
+GET /api/Dashboard/satici (kontrol merkezi KPI ve aksiyon onerileri)
 GET /api/Profil/satici
 PUT /api/Profil/satici (aciklama + kapakResim multipart)
 GET /api/Urun/urunlerim
+PATCH /api/Urun/toplu-stok
 GET /api/Talep/satici?durum=&page=&pageSize=
+GET /api/Talep/pazar
+POST /api/OrtakAlim
 GET /api/Chat/conversations
 ```
 
@@ -413,6 +424,7 @@ Admin paneli:
 
 ```txt
 GET /api/Dashboard/admin
+GET /api/Admin/talep-bosluklari
 GET /api/Admin/kullanicilar
 PATCH /api/Admin/saticilar/{saticiId}/dogrulama
 GET /api/Admin/urunler
@@ -421,14 +433,20 @@ GET /api/Admin/yorumlar
 PATCH /api/Admin/yorumlar/{yorumId}/durum
 ```
 
-Alici urun detayi:
+Alici urun detayi ve kesif/alarmlar:
 
 ```txt
 GET /api/Urun/{id}
 GET /api/Profil/satici/{saticiId}/guven-skoru
 GET /api/Urun/{urunId}/yorum-yetkisi
 POST /api/Talep
+POST /api/Talep/pazar
+POST /api/Talep/{talepId}/tekrarla
 POST /api/Urun/{urunId}/favori
+POST /api/Urun/{urunId}/fiyat-alarmi
+POST /api/Urun/{urunId}/stok-alarmi
+POST /api/Profil/satici/{saticiId}/takip
+POST /api/OrtakAlim/{id}/katil
 ```
 
 Chat:

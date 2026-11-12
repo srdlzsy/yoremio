@@ -32,14 +32,15 @@ Not: Platform odeme ve kargo sureci yonetmez; iletisim ve anlasma kaydi tutar.
 
 - JWT + Identity tabanli kimlik ve rol yonetimi
 - Satici/alici kayit ve giris
-- Kategori ve urun yonetimi
-- Yorum, puan ve favori akislari
-- Onerilen urunler
+- Kategori ve urun yonetimi (birim/miktar, yeni hasat, teslimat kapsami, mensei sehir, goruntulenme ve toplu stok/fiyat guncelleme)
+- Yorum, puan, favori, satici takibi, fiyat alarmi ve stok alarmi akislari
+- Konum bazli akilli urun kesfi (`/api/Urun/kesfet`) ve sonucsuz aramalarda akilli alternatifler + "Benim Icin Bul" onerisi
 - Satici guven skoru ve dogrulanmis satici rozeti (admin manuel onay/ret destekli)
 - Sehir/ilce bazli dinamik konum kesfi ve akilli oneriler
-- Talep/teklif akisi (durum ve sayfalama destekli)
+- Urun bazli & akilli acik pazar talep/teklif akisi (durum/sayfalama, akilli uretici eslestirme, tek dokunusla talep tekrari, dis anlasma tamamlama onayi)
+- Yoremio Ortak Alim (bolgesel toplu siparis olusturma/onerme, satici onayi, katilim/hedef takibi)
 - Kalici mesaj gecmisi, okundu bilgisi ve canli bildirimler (`NotificationReceived`) sunan SignalR (`/chathub`)
-- Admin dogrulama, kullanici listeleme ve urun/yorum moderasyonu (`/api/Admin/...`)
+- Satici Kontrol Merkezi KPI'lari ve Admin dogrulama, moderasyon, tekrar-alici + arz boslugu analitigi (`/api/Admin/talep-bosluklari`)
 
 ## Teknoloji Yigini
 
@@ -163,21 +164,38 @@ Auth:
 Urun:
 
 - `GET /api/Urun`
+- `GET /api/Urun/kesfet`
 - `GET /api/Urun/onerilen`
 - `GET /api/Urun/favorilerim`
 - `POST /api/Urun/{urunId}/favori`
 - `DELETE /api/Urun/{urunId}/favori`
+- `PATCH /api/Urun/toplu-stok`
+- `POST /api/Urun/{urunId}/fiyat-alarmi` / `DELETE /api/Urun/{urunId}/fiyat-alarmi` / `GET /api/Urun/fiyat-alarmlarim`
+- `POST /api/Urun/{urunId}/stok-alarmi` / `DELETE /api/Urun/{urunId}/stok-alarmi` / `GET /api/Urun/stok-alarmlarim`
 
 Talep:
 
 - `POST /api/Talep`
+- `POST /api/Talep/pazar`
+- `GET /api/Talep/pazar`
 - `GET /api/Talep/{talepId}`
 - `GET /api/Talep/benim`
 - `GET /api/Talep/satici`
+- `POST /api/Talep/{talepId}/tekrarla`
 - `POST /api/Talep/{talepId}/teklif`
 - `POST /api/Talep/teklif/{teklifId}/kabul`
 - `POST /api/Talep/teklif/{teklifId}/red`
 - `POST /api/Talep/{talepId}/iptal`
+- `POST /api/Talep/{talepId}/anlasma-onayi`
+
+Ortak Alim:
+
+- `GET /api/OrtakAlim`
+- `GET /api/OrtakAlim/{id}`
+- `POST /api/OrtakAlim`
+- `POST /api/OrtakAlim/{id}/onayla`
+- `POST /api/OrtakAlim/{id}/katil` / `DELETE /api/OrtakAlim/{id}/katil`
+- `PATCH /api/OrtakAlim/{id}/durum`
 
 Chat:
 
@@ -203,6 +221,9 @@ Profil:
 - `GET /api/Profil/satici/{saticiId}`
 - `GET /api/Profil/satici/{saticiId}/guven-skoru`
 - `GET /api/Profil/saticilar/one-cikan`
+- `POST /api/Profil/satici/{saticiId}/takip`
+- `DELETE /api/Profil/satici/{saticiId}/takip`
+- `GET /api/Profil/takip-edilenler`
 
 Admin:
 
@@ -213,6 +234,7 @@ Admin:
 - `PATCH /api/Admin/urunler/{urunId}/durum`
 - `GET /api/Admin/yorumlar`
 - `PATCH /api/Admin/yorumlar/{yorumId}/durum`
+- `GET /api/Admin/talep-bosluklari`
 
 ## Konfigurasyon Notlari
 

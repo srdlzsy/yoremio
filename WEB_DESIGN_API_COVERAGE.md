@@ -8,18 +8,20 @@ Desteklenen alanlar:
 
 - Kategori listesi: `GET /api/App/bootstrap` veya `GET /api/Kategori` (`urunSayisi` dahil)
 - Akilli lokasyon secicisi (aktif urunlu sehir/ilceler): `GET /api/App/bootstrap` (`cities`, `locations`)
-- Urun arama/liste/grid: `GET /api/Urun`
+- Urun arama/liste/grid: `GET /api/Urun` (standart) ve akilli konum + alternatif kesif: `GET /api/Urun/kesfet`
 - Arama kutusu: `q`
 - Kategori filtresi: `kategoriId`
-- Lokasyon filtresi: `sehir`, `ilce`
+- Lokasyon & teslimat kapsami filtreleri: `sehir`, `ilce`, `uretimSehir`, `teslimatSehir`, `sadeceEldenTeslim`, `sadeceKargolu`, `sadeceYeniHasat`
 - Fiyat filtresi: `minFiyat`, `maxFiyat`
 - Stok filtresi: `sadeceStoktaOlanlar`
 - Puan filtresi: `minOrtalamaPuan`
 - Dogrulanmis satici filtresi: `sadeceDogrulanmisSatici`
-- Siralama: `sort`
-- Public satici vitrin ozeti: `GET /api/Profil/satici/{saticiId}` (`aciklama`, `kapakResimUrl` dahil)
+- Siralama: `sort` (`newest`, `relevance`, `price_asc`, `price_desc`, `top_rated`, `most_viewed`, `most_favorited`)
+- Sonuc bulunamazsa akilli alternatifler (`GET /api/Urun/kesfet` -> `alternatifler`): `ayniYoredenUrunler`, `sehreGonderimYapanlar`, `stoguTukenenUrunler`, `aktifOrtakAlimlar`, `benimIcinBulOnerisi`
+- Public satici vitrin ozeti: `GET /api/Profil/satici/{saticiId}` (`aciklama`, `kapakResimUrl`, `paketTuru` dahil)
 - One cikan saticilar: `GET /api/Profil/saticilar/one-cikan`
-- Urun karti gorseli: `urun.resimler[0].url`
+- Yoremio Ortak Alim vitrini: `GET /api/OrtakAlim`, `GET /api/OrtakAlim/{id}`
+- Urun karti zengin alanlari: `urun.resimler[0].url`, `birimMiktar`, `teslimatSecenekleri`, `yeniHasatMi`, `goruntulenmeSayisi`, `slug`, `uretimSehir`, `uretimIlce`, `eldenTeslimVarMi`, `kargoVarMi`, `gonderimSehirleri`
 - Satici rozetleri: `saticiDogrulanmis`, `saticiMagazaAdi`, `saticiSehir`, `saticiIlce`
 
 Tasarim siniri:
@@ -34,8 +36,11 @@ Desteklenen alanlar:
 - Fiyat/stok/kategori/satici bilgisi: `UrunDto`
 - Sosyal kanit: `ortalamaPuan`, `toplamPuan`, `toplamYorum`, `toplamFavori`
 - Favoriye ekle/cikar: `POST /api/Urun/{urunId}/favori`, `DELETE /api/Urun/{urunId}/favori`
+- Fiyat ve stok alarmlari: `POST/DELETE /api/Urun/{urunId}/fiyat-alarmi`, `POST/DELETE /api/Urun/{urunId}/stok-alarmi`
+- Satici takip (yeni urun/hasat bildirimi): `POST/DELETE /api/Profil/satici/{saticiId}/takip`
 - Favoride mi bilgisi: alici login ise `GET /api/Urun/favorilerim` sonucu urun id ile eslestirilir.
-- Talep olustur: `POST /api/Talep`
+- Talep olustur (urun bazli veya acik pazar / Benim Icin Bul): `POST /api/Talep`, `POST /api/Talep/pazar`
+- Ortak alim katilimi veya onerisi: `POST /api/OrtakAlim`, `POST /api/OrtakAlim/{id}/katil`
 - Saticiya yaz: `POST /api/Chat/messages/{receiverId}` veya SignalR `SendMessage`
 - Satici guven skoru: `GET /api/Profil/satici/{saticiId}/guven-skoru`
 
@@ -50,10 +55,11 @@ Desteklenen alanlar:
 - Profilim ve konum/gorunen ad duzenleme: `GET /api/Profil/alici`, `PUT /api/Profil/alici` (`userName`, `sehir`, `ilce`, `adres`, `favoriKategori`)
 - Onerilen urunler (konum ve kategori bazli): `GET /api/Urun/onerilen`
 - Favoriler: `GET /api/Urun/favorilerim`
-- Taleplerim (durum ve sayfalama destekli): `GET /api/Talep/benim?durum=&page=&pageSize=`
+- Taleplerim (durum ve sayfalama destekli) + akilli acik pazar talebi: `GET /api/Talep/benim?durum=&page=&pageSize=`, `POST /api/Talep/pazar`, `POST /api/Talep/{talepId}/tekrarla`
 - Talep detay: `GET /api/Talep/{talepId}`
-- Talep karti urun/satici gorseli: `urunResimUrl`, `urunAdi`, `urunFiyat`, `saticiMagazaAdi`, `saticiSehir`, `saticiIlce`
-- Teklif kabul/red ve talep iptal: `POST /api/Talep/teklif/{teklifId}/kabul`, `POST /api/Talep/teklif/{teklifId}/red`, `POST /api/Talep/{talepId}/iptal`
+- Talep karti urun/satici gorseli: `urunResimUrl`, `urunAdi`, `urunFiyat`, `saticiMagazaAdi`, `saticiSehir`, `saticiIlce`, `talepTuru`, `arananUrunAdi`, `teslimatSehir`
+- Teklif kabul/red, talep iptal ve dis anlasma tamamlama onayi: `POST /api/Talep/teklif/{teklifId}/kabul`, `POST /api/Talep/teklif/{teklifId}/red`, `POST /api/Talep/{talepId}/iptal`, `POST /api/Talep/{talepId}/anlasma-onayi`
+- Alarmlar & takip edilen ureticiler & ortak alimlar: `GET /api/Urun/fiyat-alarmlarim`, `GET /api/Urun/stok-alarmlarim`, `GET /api/Profil/takip-edilenler`, `POST/DELETE /api/OrtakAlim/{id}/katil`
 - Mesajlar: `GET /api/Chat/conversations`, `GET /api/Chat/messages/{otherUserId}`
 - Puan/yorum yetki kontrolu: `GET /api/Urun/{urunId}/yorum-yetkisi` (`yorumYapabilir`, `puanlayabilir`, `mevcutPuan`)
 - Puan/yorum: sadece anlasilmis talep sonrasi `POST /api/Puan/puan-ekle`, `POST /api/Yorum`
@@ -66,15 +72,16 @@ Tasarim siniri:
 
 Desteklenen alanlar:
 
-- KPI kartlari: `GET /api/Dashboard/satici`
+- KPI ve kontrol merkezi kartlari (yanitsiz talep, acik pazar firsatlari, dusuk stok, takipci, yanit suresi, tamamlanan anlasmalar, aksiyon onerileri): `GET /api/Dashboard/satici`
 - Profil (magaza hikayesi + kapak resmi yukleme destekli): `GET /api/Profil/satici`, `PUT /api/Profil/satici` (JSON veya multipart `kapakResim`)
-- Urunlerim: `GET /api/Urun/urunlerim`
+- Urunlerim ve toplu stok/fiyat/yeni hasat guncelleme: `GET /api/Urun/urunlerim`, `PATCH /api/Urun/toplu-stok`
 - Urun ekle/guncelle: `POST /api/Urun/urun-ekle`, `PUT /api/Urun/{urunId}`
 - Medya yukle: multipart `Resimler`, `Videolar`
 - Medya sil: `DELETE /api/Urun/{urunId}/resimler/{resimId}`, `DELETE /api/Urun/{urunId}/videolar/{videoId}`
 - Aktif/pasif: `PATCH /api/Urun/{urunId}/status`
-- Gelen talepler (durum ve sayfalama destekli): `GET /api/Talep/satici?durum=&page=&pageSize=`
-- Teklif ver/guncelle: `POST /api/Talep/{talepId}/teklif`
+- Gelen direkt talepler + akilli eslesen acik pazar talepleri: `GET /api/Talep/satici?durum=&page=&pageSize=`, `GET /api/Talep/pazar`
+- Teklif ver/guncelle + dis anlasma tamamlama onayi: `POST /api/Talep/{talepId}/teklif`, `POST /api/Talep/{talepId}/anlasma-onayi`
+- Ortak alim baslatma/onay/durum guncelleme: `POST /api/OrtakAlim`, `POST /api/OrtakAlim/{id}/onayla`, `PATCH /api/OrtakAlim/{id}/durum`
 - Chat: Chat REST + SignalR endpointleri
 
 Tasarim siniri:
@@ -86,7 +93,8 @@ Tasarim siniri:
 
 Desteklenen alanlar:
 
-- KPI ozeti: `GET /api/Dashboard/admin`
+- KPI ozeti (donusum, anlasma ve 60 gunluk tekrar alici orani dahil): `GET /api/Dashboard/admin`
+- Sehir + urun bazli arz boslugu analitigi (yeni uretici kazanimi): `GET /api/Admin/talep-bosluklari`
 - Kullanici listesi ve rol filtreleme: `GET /api/Admin/kullanicilar`
 - Satici dogrulama rozeti onay/ret: `PATCH /api/Admin/saticilar/{saticiId}/dogrulama`
 - Satici aktif/pasif yapma: `PATCH /api/Admin/saticilar/{saticiId}/durum`
