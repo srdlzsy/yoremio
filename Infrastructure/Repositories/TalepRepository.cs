@@ -94,7 +94,6 @@ namespace Infrastructure.Repositories
                 .ThenInclude(talep => talep!.Eslesmeler)
                 .Include(t => t.Satici)
                 .ThenInclude(user => user!.SaticiProfili)
-                .ThenInclude(s => s!.Kullanici)
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(t => t.Id == teklifId);
         }
@@ -157,7 +156,6 @@ namespace Infrastructure.Repositories
                 .Include(t => t.Teklifler)
                 .ThenInclude(teklif => teklif.Satici)
                 .ThenInclude(user => user!.SaticiProfili)
-                .ThenInclude(s => s!.Kullanici)
                 .AsSplitQuery();
         }
 
